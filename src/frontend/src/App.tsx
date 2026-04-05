@@ -485,7 +485,7 @@ export default function App() {
                   setIncludeFreeThreshold(null);
                   setIsFreeModalOpen(false);
                 }}
-                className="px-4 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all duration-200 ease-out active:scale-95"
+                className="px-4 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95"
               >
                 Disable Free
               </button>
@@ -496,7 +496,7 @@ export default function App() {
                   setFreeTierFilter("none");
                   setIsFreeModalOpen(false);
                 }}
-                className="px-5 py-2 bg-zinc-200 hover:bg-white text-black text-xs font-bold rounded-lg transition-all duration-200 ease-out active:scale-95"
+                className="px-5 py-2 bg-zinc-200 hover:bg-white text-black text-xs font-bold rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95"
               >
                 Apply Filter
               </button>
@@ -507,7 +507,7 @@ export default function App() {
 
       {/* Header */}
       <div
-        className={`shrink-0 transform-gpu transition-[transform,opacity] duration-300 ease-out will-change-transform ${
+        className={`shrink-0 transform-gpu transition-[transform,opacity] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-transform ${
           isZenMode
             ? "hidden"
             : isScrollFocused
@@ -523,7 +523,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsLeftOpen(!isLeftOpen)}
-              className={`p-1.5 rounded-md motion-safe:transition-all duration-200 ease-out active:scale-95 hidden md:flex items-center justify-center min-w-[36px] min-h-[36px] ${isLeftOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`p-1.5 rounded-md motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 hidden md:flex items-center justify-center min-w-[36px] min-h-[36px] ${isLeftOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
             >
               {isLeftOpen ? (
                 <PanelLeftClose className="w-4 h-4" />
@@ -551,7 +551,7 @@ export default function App() {
                       type="button"
                       data-ocid={`nav.${id}.tab`}
                       onClick={() => handleCategorySwitch(id)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 ease-out whitespace-nowrap active:scale-95 shrink-0 ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] whitespace-nowrap active:scale-95 shrink-0 ${
                         isActive
                           ? `${activeClass} shadow-md`
                           : `${iconColor} hover:bg-zinc-800/80 hover:text-zinc-200`
@@ -559,7 +559,7 @@ export default function App() {
                     >
                       <Icon className="w-[18px] h-[18px] shrink-0" />
                       {isActive && (
-                        <span className="overflow-hidden transition-all duration-200 ease-out max-w-[80px] opacity-100">
+                        <span className="overflow-hidden transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] max-w-[80px] opacity-100">
                           {label}
                         </span>
                       )}
@@ -580,7 +580,7 @@ export default function App() {
                     type="button"
                     data-ocid="nav.top500.tab"
                     onClick={() => handleCategorySwitch("top500")}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 ease-out whitespace-nowrap active:scale-95 shrink-0 ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] whitespace-nowrap active:scale-95 shrink-0 ${
                       isActive
                         ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-md shadow-amber-900/40"
                         : "text-amber-500 hover:bg-zinc-800/80 hover:text-amber-400"
@@ -601,7 +601,7 @@ export default function App() {
                     type="button"
                     data-ocid="nav.megaall.tab"
                     onClick={() => handleCategorySwitch("megaall")}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 ease-out whitespace-nowrap active:scale-95 shrink-0 ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] whitespace-nowrap active:scale-95 shrink-0 ${
                       isActive
                         ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-900/40"
                         : "text-indigo-400 hover:bg-zinc-800/80 hover:text-indigo-300"
@@ -623,7 +623,7 @@ export default function App() {
                 placeholder="Search..."
                 value={searchInput}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="w-24 sm:w-32 bg-zinc-900/80 border border-zinc-800/80 rounded-full py-1.5 pl-7 pr-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 transition-[border-color,background-color] duration-200 min-h-[36px]"
+                className="w-24 sm:w-32 bg-zinc-900/80 border border-zinc-800/80 rounded-full py-1.5 pl-7 pr-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 transition-[border-color,background-color] duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] min-h-[36px]"
               />
               {search && (
                 <button
@@ -644,7 +644,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => handleZenMode(true)}
-              className="p-1.5 rounded-md transition-all duration-200 ease-out bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95"
+              className="p-1.5 rounded-md transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95"
               title="Focus Mode"
             >
               <Maximize2 className="w-4 h-4" />
@@ -654,7 +654,7 @@ export default function App() {
               type="button"
               data-ocid="mobile.filter.button"
               onClick={() => setMobileFilterOpen(true)}
-              className="flex md:hidden p-1.5 rounded-md transition-all duration-200 ease-out text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95 min-w-[36px] min-h-[36px] items-center justify-center"
+              className="flex md:hidden p-1.5 rounded-md transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95 min-w-[36px] min-h-[36px] items-center justify-center"
               title="Filters"
             >
               <Filter className="w-4 h-4" />
@@ -663,7 +663,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-              className={`flex p-1.5 rounded-md transition-all duration-200 ease-out border active:scale-95 ${isFiltersOpen ? "bg-zinc-800 border-zinc-700 text-zinc-200" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`flex p-1.5 rounded-md transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] border active:scale-95 ${isFiltersOpen ? "bg-zinc-800 border-zinc-700 text-zinc-200" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
               title="Toggle Advanced Filters"
             >
               {isFiltersOpen ? (
@@ -679,14 +679,14 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setIsARR(false)}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-200 ease-out active:scale-95 ${!isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${!isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
               >
                 MRR
               </button>
               <button
                 type="button"
                 onClick={() => setIsARR(true)}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-200 ease-out active:scale-95 ${isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
               >
                 ARR
               </button>
@@ -696,7 +696,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setCurrency(currency === "USD" ? "INR" : "USD")}
-                className="text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-all duration-200 ease-out active:scale-95 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md"
+                className="text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md"
               >
                 {currency === "USD" ? (
                   <DollarSign className="w-3.5 h-3.5" />
@@ -735,7 +735,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsChatOpen(!isChatOpen)}
-              className={`hidden lg:flex p-1.5 rounded-md transition-all duration-200 ease-out border active:scale-95 ${isChatOpen ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-400" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`hidden lg:flex p-1.5 rounded-md transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] border active:scale-95 ${isChatOpen ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-400" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
               title="AI Copilot"
             >
               <Bot className="w-4 h-4" />
@@ -744,7 +744,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsRightOpen(!isRightOpen)}
-              className={`p-1.5 rounded-md transition-all duration-200 ease-out active:scale-95 ${isRightOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`p-1.5 rounded-md transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${isRightOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
             >
               {isRightOpen ? (
                 <PanelRightClose className="w-4 h-4" />
@@ -759,7 +759,7 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden relative">
         {/* Mobile filter bottom sheet */}
         <div
-          className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ease-out ${mobileFilterOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+          className={`fixed inset-0 z-50 md:hidden transition-all duration-[250ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] ${mobileFilterOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
           data-ocid="mobile.filter.modal"
         >
           <button
@@ -769,7 +769,7 @@ export default function App() {
             onClick={() => setMobileFilterOpen(false)}
           />
           <div
-            className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 max-h-[82vh] flex flex-col overflow-hidden motion-safe:transition-transform motion-safe:duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${mobileFilterOpen ? "translate-y-0" : "translate-y-full"}`}
+            className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 max-h-[82vh] flex flex-col overflow-hidden transition-transform duration-[350ms] ease-[cubic-bezier(0.32,0.72,0,1)] transform-gpu will-change-transform ${mobileFilterOpen ? "translate-y-0" : "translate-y-full"}`}
           >
             <div className="w-10 h-1 bg-zinc-600 rounded-full mx-auto mt-3 mb-2 shrink-0" />
             <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60 shrink-0">
@@ -798,7 +798,7 @@ export default function App() {
                     type="button"
                     key={s.id}
                     onClick={() => setSortBy(s.id)}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                   >
                     <span className="text-[12px] font-bold">{s.label}</span>
                     {sortBy === s.id && (
@@ -838,7 +838,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
                   <span className="text-base">🏷️</span>
                   <span className="text-[12px] font-bold">
@@ -862,7 +862,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
                   <span className="text-base">📅</span>
                   <span className="text-[12px] font-bold">
@@ -895,7 +895,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMrrFilter("all")}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${mrrFilter === "all" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${mrrFilter === "all" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-3.5 h-3.5 rounded-sm bg-zinc-700 flex items-center justify-center text-[8px] font-black shrink-0 text-white">
                     ALL
@@ -910,7 +910,7 @@ export default function App() {
                       setMrrFilter(tier.id);
                       setFreeTierFilter("none");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${mrrFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${mrrFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <tier.icon
                       className={`w-3.5 h-3.5 shrink-0 ${tier.color}`}
@@ -946,7 +946,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setTicketFilter("All")}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${ticketFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${ticketFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
                     ALL
@@ -961,7 +961,7 @@ export default function App() {
                       setTicketFilter(tier.id);
                       setFreeTierFilter("none");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${ticketFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${ticketFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <div
                       className={`w-6 h-4 rounded ${tier.bg} ${tier.text} text-[7px] flex items-center justify-center font-black shrink-0 shadow-sm`}
@@ -1011,7 +1011,7 @@ export default function App() {
                     setMrrFilter("all");
                     setTicketFilter("All");
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${freeTierFilter === "all" ? "bg-indigo-500/20 text-indigo-300" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${freeTierFilter === "all" ? "bg-indigo-500/20 text-indigo-300" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <span className="text-[12px] font-bold">
                     All Free Communities
@@ -1026,7 +1026,7 @@ export default function App() {
                       setMrrFilter("all");
                       setTicketFilter("All");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${freeTierFilter === tier.id ? `${tier.activeBg} ${tier.activeText}` : `${tier.color} hover:bg-zinc-900`}`}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${freeTierFilter === tier.id ? `${tier.activeBg} ${tier.activeText}` : `${tier.color} hover:bg-zinc-900`}`}
                   >
                     <span className="text-[12px] font-bold leading-tight">
                       {tier.label}
@@ -1054,7 +1054,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setLangFilter("All")}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${langFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${langFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
                     ALL
@@ -1066,7 +1066,7 @@ export default function App() {
                     type="button"
                     key={l.lang}
                     onClick={() => setLangFilter(l.lang)}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${langFilter === l.lang ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 min-h-[44px] ${langFilter === l.lang ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <div className="text-base shrink-0">{l.flag}</div>
                     <div className="flex flex-col">
@@ -1104,7 +1104,7 @@ export default function App() {
                     key={id}
                     data-ocid={`sidebar.${id}.tab`}
                     onClick={() => setView(id)}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${view === id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${view === id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <Icon className="w-3.5 h-3.5 shrink-0" />
                     <span className="text-[12px] font-bold">{label}</span>
@@ -1129,7 +1129,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
                   <span className="text-base">🏷️</span>
                   <span className="text-[12px] font-bold">
@@ -1153,7 +1153,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
                   <span className="text-base">📅</span>
                   <span className="text-[12px] font-bold">
@@ -1181,7 +1181,7 @@ export default function App() {
                     type="button"
                     key={s.id}
                     onClick={() => setSortBy(s.id)}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <span className="text-[12px] font-bold">{s.label}</span>
                     {sortBy === s.id && (
@@ -1223,7 +1223,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMrrFilter("all")}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${mrrFilter === "all" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${mrrFilter === "all" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-3.5 h-3.5 rounded-sm bg-zinc-700 flex items-center justify-center text-[8px] font-black shrink-0 text-white">
                     ALL
@@ -1238,7 +1238,7 @@ export default function App() {
                       setMrrFilter(tier.id);
                       setFreeTierFilter("none");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${mrrFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${mrrFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <tier.icon
                       className={`w-3.5 h-3.5 shrink-0 ${tier.color}`}
@@ -1274,7 +1274,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setTicketFilter("All")}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${ticketFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${ticketFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
                     ALL
@@ -1289,7 +1289,7 @@ export default function App() {
                       setTicketFilter(tier.id);
                       setFreeTierFilter("none");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${ticketFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${ticketFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <div
                       className={`w-6 h-4 rounded ${tier.bg} ${tier.text} text-[7px] flex items-center justify-center font-black shrink-0 shadow-sm`}
@@ -1339,7 +1339,7 @@ export default function App() {
                     setMrrFilter("all");
                     setTicketFilter("All");
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${freeTierFilter === "all" ? "bg-indigo-500/20 text-indigo-300" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${freeTierFilter === "all" ? "bg-indigo-500/20 text-indigo-300" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <span className="text-[12px] font-bold">
                     All Free Communities
@@ -1354,7 +1354,7 @@ export default function App() {
                       setMrrFilter("all");
                       setTicketFilter("All");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${
                       freeTierFilter === tier.id
                         ? `${tier.activeBg} ${tier.activeText}`
                         : `${tier.color} hover:bg-zinc-900`
@@ -1386,7 +1386,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setLangFilter("All")}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${langFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${langFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
                     ALL
@@ -1398,7 +1398,7 @@ export default function App() {
                     type="button"
                     key={l.lang}
                     onClick={() => setLangFilter(l.lang)}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${langFilter === l.lang ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${langFilter === l.lang ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <div className="text-base shrink-0">{l.flag}</div>
                     <div className="flex flex-col">
@@ -1421,7 +1421,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center justify-center gap-2 w-full py-2 bg-zinc-100 text-zinc-900 rounded-lg text-xs font-bold hover:bg-white transition-all duration-200 ease-out active:scale-95"
+                  className="flex items-center justify-center gap-2 w-full py-2 bg-zinc-100 text-zinc-900 rounded-lg text-xs font-bold hover:bg-white transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95"
                 >
                   <Upload className="w-3.5 h-3.5" /> Import CSV
                 </button>
@@ -1430,11 +1430,13 @@ export default function App() {
           </aside>
         )}
 
-        <main className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a]">
+        <main
+          className={`flex-1 flex flex-col min-w-0 bg-[#0a0a0a] md:pb-0 transition-[padding] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "pb-0" : "pb-16"}`}
+        >
           {/* Filter bar */}
           {!isZenMode && (
             <div
-              className={`transition-[opacity] duration-200 ease-in-out shrink-0 border-b border-zinc-800/50 bg-[#0a0a0a] will-change-transform ${
+              className={`transition-[opacity] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] shrink-0 border-b border-zinc-800/50 bg-[#0a0a0a] will-change-transform ${
                 isFiltersOpen && !isScrollFocused
                   ? "opacity-100 py-2"
                   : "opacity-0 pointer-events-none border-none h-0 overflow-hidden"
@@ -1576,7 +1578,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setHideNoMatch((v) => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ease-out active:scale-95 ${hideNoMatch ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${hideNoMatch ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
                   >
                     {hideNoMatch
                       ? "⚡ Comparisons only"
@@ -1590,7 +1592,7 @@ export default function App() {
                         v === "growth" ? "all" : "growth",
                       )
                     }
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ease-out active:scale-95 ${mrrDeltaFilter === "growth" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${mrrDeltaFilter === "growth" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
                   >
                     ↑ MRR Growth
                   </button>
@@ -1601,7 +1603,7 @@ export default function App() {
                         v === "declined" ? "all" : "declined",
                       )
                     }
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ease-out active:scale-95 ${mrrDeltaFilter === "declined" ? "bg-rose-500/15 border-rose-500/40 text-rose-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${mrrDeltaFilter === "declined" ? "bg-rose-500/15 border-rose-500/40 text-rose-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
                   >
                     ↓ MRR Declined
                   </button>
@@ -1789,7 +1791,7 @@ export default function App() {
       {/* Mobile bottom nav */}
       {!isZenMode && (
         <nav
-          className={`flex md:hidden shrink-0 items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 pb-safe z-30 transform-gpu will-change-transform transition-[transform,opacity] duration-300 ease-out ${isScrollFocused ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}
+          className={`fixed bottom-0 left-0 right-0 md:hidden flex items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 pb-safe z-30 transform-gpu will-change-transform transition-[transform,opacity] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}
         >
           {[
             { id: "gallery", Icon: LayoutGrid, label: "Cards" },
@@ -1800,7 +1802,7 @@ export default function App() {
               type="button"
               data-ocid={`mobile.view.${id}.tab`}
               onClick={() => setView(id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-200 ease-out active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
             >
               <Icon className="w-5 h-5" />
               <span className="text-[10px] font-semibold">{label}</span>
@@ -1810,7 +1812,7 @@ export default function App() {
             type="button"
             data-ocid="mobile.filter.open_modal_button"
             onClick={() => setMobileFilterOpen(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-200 ease-out active:scale-95 text-zinc-500 hover:text-zinc-300"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 text-zinc-500 hover:text-zinc-300"
           >
             <Filter className="w-5 h-5" />
             <span className="text-[10px] font-semibold">Filters</span>
@@ -1827,7 +1829,7 @@ export default function App() {
                 type="button"
                 data-ocid="mobile.category.open_modal_button"
                 onClick={() => setMobileCategoryOpen(true)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-200 ease-out active:scale-95 ${mobileCategoryOpen ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${mobileCategoryOpen ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
               >
                 <ActiveIcon className={`w-5 h-5 ${active.color}`} />
                 <span className="text-[10px] font-semibold">Category</span>
@@ -1839,7 +1841,7 @@ export default function App() {
 
       {/* Mobile category picker overlay */}
       <div
-        className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ease-out ${mobileCategoryOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        className={`fixed inset-0 z-50 md:hidden transition-all duration-[250ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] ${mobileCategoryOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
         <button
           type="button"
@@ -1848,7 +1850,7 @@ export default function App() {
           onClick={() => setMobileCategoryOpen(false)}
         />
         <div
-          className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 max-h-[70vh] flex flex-col overflow-hidden motion-safe:transition-transform motion-safe:duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${mobileCategoryOpen ? "translate-y-0" : "translate-y-full"}`}
+          className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 max-h-[70vh] flex flex-col overflow-hidden transition-transform duration-[350ms] ease-[cubic-bezier(0.32,0.72,0,1)] transform-gpu will-change-transform ${mobileCategoryOpen ? "translate-y-0" : "translate-y-full"}`}
         >
           <div className="w-10 h-1 bg-zinc-600 rounded-full mx-auto mt-3 mb-2 shrink-0" />
           <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60 shrink-0">
@@ -1874,7 +1876,7 @@ export default function App() {
                       handleCategorySwitch(id);
                       setMobileCategoryOpen(false);
                     }}
-                    className={`flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-200 ease-out active:scale-95 min-h-[56px] ${
+                    className={`flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 min-h-[56px] ${
                       isActive
                         ? `${activeBg} border-opacity-100`
                         : "border-zinc-800/60 bg-zinc-900/30 text-zinc-400"

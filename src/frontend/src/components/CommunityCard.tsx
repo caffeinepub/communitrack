@@ -34,7 +34,7 @@ export const CommunityCard = memo(function CommunityCard({
     <button
       type="button"
       onClick={() => community.url && window.open(community.url, "_blank")}
-      className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-200 ease-out rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
+      className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
     >
       {catMeta && (
         <div

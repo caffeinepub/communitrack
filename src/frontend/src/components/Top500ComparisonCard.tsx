@@ -53,7 +53,7 @@ export const Top500ComparisonCard = memo(function Top500ComparisonCard({
         boxShadow: glowStyle.boxShadow,
         borderColor: glowStyle.borderColor,
       }}
-      className={`group relative flex flex-col p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-200 ease-out rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${community.url ? "cursor-pointer" : ""}`}
+      className={`group relative flex flex-col p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${community.url ? "cursor-pointer" : ""}`}
     >
       <div className="flex items-center gap-2 min-w-0 mb-3">
         <div
