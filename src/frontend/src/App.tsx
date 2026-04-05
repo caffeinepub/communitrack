@@ -1431,7 +1431,7 @@ export default function App() {
         )}
 
         <main
-          className={`flex-1 flex flex-col min-w-0 bg-[#0a0a0a] md:pb-0 transition-[padding] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "pb-0" : "pb-16"}`}
+          className={`flex-1 flex flex-col min-w-0 bg-[#0a0a0a] md:pb-0 transition-[padding] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "pb-0" : "main-mobile-pb"}`}
         >
           {/* Filter bar */}
           {!isZenMode && (
@@ -1791,7 +1791,7 @@ export default function App() {
       {/* Mobile bottom nav */}
       {!isZenMode && (
         <nav
-          className={`fixed bottom-0 left-0 right-0 md:hidden flex items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 pb-safe z-30 transform-gpu will-change-transform transition-[transform,opacity] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}
+          className={`fixed bottom-0 left-0 right-0 md:hidden flex items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 z-30 nav-bottom-safe transform-gpu will-change-transform transition-[transform,opacity] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}
         >
           {[
             { id: "gallery", Icon: LayoutGrid, label: "Cards" },

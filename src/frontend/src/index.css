@@ -79,6 +79,12 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: #09090b;
+    margin: 0;
+    padding: 0;
+  }
+  html {
+    background-color: #09090b;
   }
 }
 
@@ -152,11 +158,20 @@ input[type="number"]::-webkit-outer-spin-button {
   animation: scaleIn 0.15s ease-out both;
 }
 
-/* Mobile safe area support */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+/* Mobile safe area support - edge to edge nav */
+.nav-bottom-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Extend nav background below safe area so no gap is visible */
+.nav-bottom-safe::after {
+  content: "";
+  position: absolute;
+  bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-bottom, 0px);
+  background-color: #09090b;
+  pointer-events: none;
 }
 
 /* Respect reduced motion */
@@ -198,4 +213,14 @@ input[type="number"]::-webkit-outer-spin-button {
 /* Snappy scroll momentum on iOS */
 .custom-scrollbar {
   -webkit-overflow-scrolling: touch;
+}
+
+/* Main content bottom padding accounts for nav + safe area */
+.main-mobile-pb {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .main-mobile-pb {
+    padding-bottom: 0;
+  }
 }
