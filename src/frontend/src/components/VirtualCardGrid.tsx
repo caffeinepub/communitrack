@@ -98,7 +98,10 @@ const CardRow = memo(function CardRow({
             );
           }
           const tier = getTierInfo(community.activeRevenue);
-          const ticketTier = getTicketTierInfo(community.ticketSize);
+          const isFixed = community.pricingType === "fixed";
+          const ticketTier = getTicketTierInfo(
+            isFixed ? community.fixedPrice : community.ticketSize,
+          );
           return (
             <button
               type="button"

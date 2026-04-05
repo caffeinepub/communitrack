@@ -23,13 +23,15 @@ export const CommunityCard = memo(function CommunityCard({
   isMegaAll = false,
 }: Props) {
   const tier = getTierInfo(community.activeRevenue);
-  const ticketTier = getTicketTierInfo(community.ticketSize);
+  const isFixed = community.pricingType === "fixed";
+  const isYearly = community.pricingType === "yearly";
+  const ticketTier = getTicketTierInfo(
+    isFixed ? community.fixedPrice : community.ticketSize,
+  );
   const catMeta =
     isMegaAll && community.sourceCategory
       ? CATEGORY_META[community.sourceCategory]
       : null;
-  const isFixed = community.pricingType === "fixed";
-  const isYearly = community.pricingType === "yearly";
 
   // Stagger entry animation — cap at index 8 to avoid sluggishness on long lists
   const staggerDelay = `${Math.min(index, 8) * 28}ms`;

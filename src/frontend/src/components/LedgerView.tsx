@@ -59,7 +59,10 @@ export const LedgerView = memo(function LedgerView({
           <tbody className="text-[13px]">
             {data.map((community, index) => {
               const tier = getTierInfo(community.activeRevenue);
-              const ticketTier = getTicketTierInfo(community.ticketSize);
+              const isFixed = community.pricingType === "fixed";
+              const ticketTier = getTicketTierInfo(
+                isFixed ? community.fixedPrice : community.ticketSize,
+              );
               return (
                 <tr
                   key={community.id}

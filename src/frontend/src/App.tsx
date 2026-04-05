@@ -194,7 +194,10 @@ export default function App() {
         c.pricingType === "fixed"
           ? c.fixedPrice * c.members
           : c.mrr * (isARR ? 12 : 1),
-      activeTicket: c.ticketSize * (isARR ? 12 : 1),
+      activeTicket:
+        c.pricingType === "fixed"
+          ? c.fixedPrice
+          : c.ticketSize * (isARR ? 12 : 1),
     }));
 
     enriched = enriched.filter((c) => {
@@ -295,7 +298,7 @@ export default function App() {
     [filteredData],
   );
   const avgTicket = useMemo(() => {
-    const paidData = filteredData.filter((d) => d.ticketSize > 0);
+    const paidData = filteredData.filter((d) => d.activeTicket > 0);
     return paidData.length
       ? Math.round(
           paidData.reduce((a, c) => a + c.activeTicket, 0) / paidData.length,
