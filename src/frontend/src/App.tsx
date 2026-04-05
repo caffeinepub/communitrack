@@ -293,6 +293,7 @@ export default function App() {
   const handleCategorySwitch = useCallback(async (cat: CategoryId) => {
     setActiveCategory(cat);
     setIsScrollFocused(false);
+    lastScrollTopRef.current = 0;
     scrollFocusCooldownRef.current = true;
     setTimeout(() => {
       scrollFocusCooldownRef.current = false;
@@ -389,64 +390,60 @@ export default function App() {
     }
   }, []);
 
-  // Scroll-driven focus mode (RAF-throttled)
+  // Scroll-driven focus mode
+  // Two paths:
+  // 1. Gallery (VirtualCardGrid): onVirtualScroll callback fires from inside react-window's outerRef
+  // 2. Table/Analytics: attach to scrollContainerRef directly; re-attach when view changes
   const rafPendingRef = useRef(false);
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
 
-    // The scroll target: either the container itself (table/analytics),
-    // or the first scrollable child element (react-window in gallery mode)
-    const getScrollEl = () => {
-      if (container.scrollHeight > container.clientHeight) return container;
-      // react-window creates a scrollable div as the first child of the list
-      const firstScrollable = container.querySelector(
-        '[style*="overflow"]',
-      ) as HTMLElement | null;
-      return firstScrollable || container;
-    };
-
-    let currentEl: HTMLElement | null = null;
-    let cleanup: (() => void) | null = null;
-
-    const handler = () => {
+  const processScroll = useCallback(
+    (scrollTop: number, scrollHeight: number, clientHeight: number) => {
       if (scrollFocusCooldownRef.current) return;
       if (rafPendingRef.current) return;
       rafPendingRef.current = true;
       requestAnimationFrame(() => {
         rafPendingRef.current = false;
-        const el = getScrollEl();
-        const st = el.scrollTop;
-        const delta = st - lastScrollTopRef.current;
-        const nearBottom = el.scrollHeight - st - el.clientHeight < 120;
-        if (delta > 25 && st > 100 && !nearBottom) {
+        const delta = scrollTop - lastScrollTopRef.current;
+        const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
+        if (delta > 25 && scrollTop > 100 && !nearBottom) {
           setIsScrollFocused(true);
         } else if (delta < -15) {
           setIsScrollFocused(false);
         }
-        lastScrollTopRef.current = st;
+        lastScrollTopRef.current = scrollTop;
       });
+    },
+    [],
+  );
+
+  // Called by VirtualCardGrid (gallery view) via outerRef scroll listener
+  const onVirtualScroll = useCallback(
+    (scrollTop: number, scrollHeight: number, clientHeight: number) => {
+      processScroll(scrollTop, scrollHeight, clientHeight);
+    },
+    [processScroll],
+  );
+
+  // For non-gallery views (table / analytics): attach to the scrollable container
+  useEffect(() => {
+    if (view === "gallery") return; // handled by VirtualCardGrid's onScroll prop
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Reset scroll position tracking on view switch
+    lastScrollTopRef.current = 0;
+
+    const handler = () => {
+      processScroll(
+        container.scrollTop,
+        container.scrollHeight,
+        container.clientHeight,
+      );
     };
 
-    const attachHandler = () => {
-      const el = getScrollEl();
-      if (el === currentEl) return;
-      if (currentEl) currentEl.removeEventListener("scroll", handler);
-      currentEl = el;
-      el.addEventListener("scroll", handler, { passive: true });
-      cleanup = () => el.removeEventListener("scroll", handler);
-    };
-
-    // Initial attach
-    attachHandler();
-    // Re-attach on a short delay to catch react-window mounting
-    const timer = setTimeout(attachHandler, 200);
-
-    return () => {
-      clearTimeout(timer);
-      if (cleanup) cleanup();
-    };
-  }, []);
+    container.addEventListener("scroll", handler, { passive: true });
+    return () => container.removeEventListener("scroll", handler);
+  }, [view, processScroll]);
 
   // Reset scroll focus when zen mode activates
   useEffect(() => {
@@ -1631,6 +1628,7 @@ export default function App() {
                   }
                   isMegaAll={activeCategory === "megaall"}
                   isTop500={activeCategory === "top500"}
+                  onScroll={onVirtualScroll}
                 />
               </div>
             </div>

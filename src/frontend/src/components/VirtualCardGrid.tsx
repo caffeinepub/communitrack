@@ -1,5 +1,11 @@
 import { Users } from "lucide-react";
-import React, { memo, useMemo, type CSSProperties } from "react";
+import React, {
+  memo,
+  useEffect,
+  useRef,
+  useMemo,
+  type CSSProperties,
+} from "react";
 import { AutoSizer } from "react-virtualized-auto-sizer";
 import { List } from "react-window";
 import { getTicketTierInfo, getTierInfo } from "../data/tiers";
@@ -29,6 +35,12 @@ type GridProps = {
   mrrDeltaFilter?: "all" | "growth" | "declined";
   isMegaAll?: boolean;
   isTop500?: boolean;
+  /** Called on every scroll event from the inner react-window scroll container */
+  onScroll?: (
+    scrollTop: number,
+    scrollHeight: number,
+    clientHeight: number,
+  ) => void;
 };
 
 type RowProps = {
@@ -183,6 +195,7 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
   mrrDeltaFilter = "all",
   isMegaAll = false,
   isTop500 = false,
+  onScroll,
 }: GridProps) {
   // Pre-filter for top500 mode so itemCount is always exact
   const displayData = useMemo(() => {
@@ -197,6 +210,23 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
       return true;
     });
   }, [data, isTop500, discoveryMap, hideNoMatch, mrrDeltaFilter]);
+
+  // outerRef gives us the actual scrollable DOM node react-window creates
+  const outerRef = useRef<HTMLDivElement>(null);
+
+  // Attach scroll listener to react-window's outer scroll container
+  useEffect(() => {
+    if (!onScroll) return;
+    const el = outerRef.current;
+    if (!el) return;
+
+    const handler = () => {
+      onScroll(el.scrollTop, el.scrollHeight, el.clientHeight);
+    };
+
+    el.addEventListener("scroll", handler, { passive: true });
+    return () => el.removeEventListener("scroll", handler);
+  }, [onScroll]);
 
   if (displayData.length === 0) return <EmptyState />;
 
@@ -225,6 +255,7 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
 
         return (
           <List
+            outerRef={outerRef}
             style={{ height: h, width: w }}
             rowCount={rowCount}
             rowHeight={rowHeight + 12}
