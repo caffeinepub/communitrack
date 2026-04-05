@@ -3142,6 +3142,7 @@ export default function App() {
   const [isScrollFocused, setIsScrollFocused] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastScrollTopRef = useRef(0);
+  const scrollFocusCooldownRef = useRef(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
 
@@ -3396,6 +3397,12 @@ export default function App() {
       // Batch all synchronous state resets in one pass (React 18 batches these automatically)
       setActiveCategory(cat);
       setIsLoading(true);
+      // Reset scroll focus and engage cooldown so scroll handler won't re-trigger during content reflow
+      setIsScrollFocused(false);
+      scrollFocusCooldownRef.current = true;
+      setTimeout(() => {
+        scrollFocusCooldownRef.current = false;
+      }, 600);
       // Defer non-critical filter resets to next microtask to avoid blocking the loading indicator
       Promise.resolve().then(() => {
         setMrrFilter("all");
@@ -3427,6 +3434,11 @@ export default function App() {
     setSearch("");
     setSearchInput("");
     setLangFilter("All");
+    setIsScrollFocused(false);
+    scrollFocusCooldownRef.current = true;
+    setTimeout(() => {
+      scrollFocusCooldownRef.current = false;
+    }, 600);
     setMrrFilter("all");
     setTicketFilter("All");
     setIncludeFreeThreshold(null);
@@ -3471,15 +3483,19 @@ export default function App() {
     const el = scrollContainerRef.current;
     if (!el) return;
     const handler = () => {
+      // Skip entirely during the cooldown window (after filter/category changes)
+      if (scrollFocusCooldownRef.current) return;
       if (rafPendingRef.current) return;
       rafPendingRef.current = true;
       requestAnimationFrame(() => {
         rafPendingRef.current = false;
         const st = el.scrollTop;
         const delta = st - lastScrollTopRef.current;
-        if (delta > 8 && st > 80) {
+        // Near-bottom guard: within 120px of the bottom, stop toggling to prevent jitter
+        const nearBottom = el.scrollHeight - st - el.clientHeight < 120;
+        if (delta > 25 && st > 100 && !nearBottom) {
           setIsScrollFocused(true);
-        } else if (delta < -8) {
+        } else if (delta < -15) {
           setIsScrollFocused(false);
         }
         lastScrollTopRef.current = st;
@@ -3554,9 +3570,12 @@ export default function App() {
           isZenMode
             ? "hidden"
             : isScrollFocused
-              ? "-translate-y-full opacity-0 h-0 overflow-hidden"
+              ? "-translate-y-full opacity-0 pointer-events-none"
               : "translate-y-0 opacity-100"
         }`}
+        style={
+          isScrollFocused && !isZenMode ? { marginBottom: "-56px" } : undefined
+        }
       >
         <header className="h-14 flex items-center gap-2 px-3 md:px-4 shrink-0 bg-[#09090b]/95 backdrop-blur-sm border-b border-zinc-800/60 z-20">
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -3996,6 +4015,11 @@ export default function App() {
                   onClick={() => {
                     setShowFixed((v) => !v);
                     setShowYearly(false);
+                    setIsScrollFocused(false);
+                    scrollFocusCooldownRef.current = true;
+                    setTimeout(() => {
+                      scrollFocusCooldownRef.current = false;
+                    }, 600);
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
@@ -4015,6 +4039,11 @@ export default function App() {
                   onClick={() => {
                     setShowYearly((v) => !v);
                     setShowFixed(false);
+                    setIsScrollFocused(false);
+                    scrollFocusCooldownRef.current = true;
+                    setTimeout(() => {
+                      scrollFocusCooldownRef.current = false;
+                    }, 600);
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
@@ -4272,6 +4301,11 @@ export default function App() {
                   onClick={() => {
                     setShowFixed((v) => !v);
                     setShowYearly(false);
+                    setIsScrollFocused(false);
+                    scrollFocusCooldownRef.current = true;
+                    setTimeout(() => {
+                      scrollFocusCooldownRef.current = false;
+                    }, 600);
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
@@ -4291,6 +4325,11 @@ export default function App() {
                   onClick={() => {
                     setShowYearly((v) => !v);
                     setShowFixed(false);
+                    setIsScrollFocused(false);
+                    scrollFocusCooldownRef.current = true;
+                    setTimeout(() => {
+                      scrollFocusCooldownRef.current = false;
+                    }, 600);
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
@@ -4539,10 +4578,10 @@ export default function App() {
         <main className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a]">
           {!isZenMode && (
             <div
-              className={`overflow-hidden transition-[transform,opacity] duration-200 ease-in-out shrink-0 border-b border-zinc-800/50 bg-[#0a0a0a] will-change-transform origin-top ${
+              className={`transition-[opacity] duration-200 ease-in-out shrink-0 border-b border-zinc-800/50 bg-[#0a0a0a] will-change-transform ${
                 isFiltersOpen && !isScrollFocused
-                  ? "opacity-100 py-2 scale-y-100"
-                  : "opacity-0 pointer-events-none border-none scale-y-0 h-0"
+                  ? "opacity-100 py-2"
+                  : "opacity-0 pointer-events-none border-none h-0 overflow-hidden"
               }`}
             >
               <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-between px-4">
