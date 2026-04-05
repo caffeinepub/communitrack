@@ -1,13 +1,7 @@
 import { Users } from "lucide-react";
-import React, {
-  memo,
-  useEffect,
-  useRef,
-  useMemo,
-  type CSSProperties,
-} from "react";
+import React, { memo, useEffect, useMemo, type CSSProperties } from "react";
 import { AutoSizer } from "react-virtualized-auto-sizer";
-import { List } from "react-window";
+import { List, useListCallbackRef } from "react-window";
 import { getTicketTierInfo, getTierInfo } from "../data/tiers";
 import type { Community, EnrichedCommunity } from "../types";
 import { compactNumber } from "../utils/format";
@@ -22,6 +16,20 @@ function getColumnCount(width: number): number {
   return 4;
 }
 
+type RowData = {
+  displayData: EnrichedCommunity[];
+  cols: number;
+  currency: string;
+  format: (a: number, c: string) => string;
+  isARR: boolean;
+  isMegaAll: boolean;
+  isTop500: boolean;
+  discoveryMap?: {
+    slugMap: Map<string, Community>;
+    nameMap: Map<string, Community>;
+  };
+};
+
 type GridProps = {
   data: EnrichedCommunity[];
   currency: string;
@@ -35,26 +43,11 @@ type GridProps = {
   mrrDeltaFilter?: "all" | "growth" | "declined";
   isMegaAll?: boolean;
   isTop500?: boolean;
-  /** Called on every scroll event from the inner react-window scroll container */
   onScroll?: (
     scrollTop: number,
     scrollHeight: number,
     clientHeight: number,
   ) => void;
-};
-
-type RowProps = {
-  displayData: EnrichedCommunity[];
-  cols: number;
-  currency: string;
-  format: (a: number, c: string) => string;
-  isARR: boolean;
-  isMegaAll: boolean;
-  isTop500: boolean;
-  discoveryMap?: {
-    slugMap: Map<string, Community>;
-    nameMap: Map<string, Community>;
-  };
 };
 
 function RowComponent({
@@ -76,7 +69,7 @@ function RowComponent({
   };
   index: number;
   style: CSSProperties;
-} & RowProps) {
+} & RowData) {
   const start = index * cols;
   const items = displayData.slice(start, start + cols);
 
@@ -84,10 +77,7 @@ function RowComponent({
     <div
       style={{
         ...style,
-        paddingLeft: 0,
-        paddingRight: 0,
         paddingBottom: 12,
-        paddingTop: 0,
         boxSizing: "border-box",
       }}
     >
@@ -96,8 +86,7 @@ function RowComponent({
           display: "grid",
           gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
           gap: "12px",
-          height: "100%",
-          alignItems: "stretch",
+          height: "calc(100% - 12px)",
         }}
       >
         {items.map((community, i) => {
@@ -116,7 +105,6 @@ function RowComponent({
                 />
               );
             }
-            // No match: show regular card with Dec '25 badge
             const tier = getTierInfo(community.activeRevenue);
             const ticketTier = getTicketTierInfo(community.ticketSize);
             return (
@@ -126,7 +114,7 @@ function RowComponent({
                 onClick={() =>
                   community.url && window.open(community.url, "_blank")
                 }
-                className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-200 ease-out rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
+                className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-200 ease-out rounded-xl w-full text-left hover:scale-[1.012] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
                   <div
@@ -197,7 +185,6 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
   isTop500 = false,
   onScroll,
 }: GridProps) {
-  // Pre-filter for top500 mode so itemCount is always exact
   const displayData = useMemo(() => {
     if (!isTop500 || !discoveryMap) return data;
     return data.filter((c) => {
@@ -211,38 +198,32 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
     });
   }, [data, isTop500, discoveryMap, hideNoMatch, mrrDeltaFilter]);
 
-  // outerRef gives us the actual scrollable DOM node react-window creates
-  const outerRef = useRef<HTMLDivElement>(null);
+  const [listRef, setListRef] = useListCallbackRef();
 
-  // Attach scroll listener to react-window's outer scroll container
+  // Attach scroll listener to the list's outer DOM element
   useEffect(() => {
-    if (!onScroll) return;
-    const el = outerRef.current;
+    if (!onScroll || !listRef) return;
+    const el = listRef.element;
     if (!el) return;
-
     const handler = () => {
       onScroll(el.scrollTop, el.scrollHeight, el.clientHeight);
     };
-
     el.addEventListener("scroll", handler, { passive: true });
     return () => el.removeEventListener("scroll", handler);
-  }, [onScroll]);
+  }, [onScroll, listRef]);
 
   if (displayData.length === 0) return <EmptyState />;
 
   return (
     <AutoSizer
-      renderProp={({
-        width,
-        height,
-      }: { width: number | undefined; height: number | undefined }) => {
+      renderProp={({ width, height }) => {
         const w = width ?? 640;
         const h = height ?? 400;
         const cols = getColumnCount(w);
-        const rowHeight = isTop500 ? 220 : 158;
+        const rowHeight = isTop500 ? 232 : 170;
         const rowCount = Math.ceil(displayData.length / cols);
 
-        const rowProps: RowProps = {
+        const rowProps: RowData = {
           displayData,
           cols,
           currency,
@@ -255,10 +236,10 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
 
         return (
           <List
-            outerRef={outerRef}
+            listRef={setListRef}
             style={{ height: h, width: w }}
             rowCount={rowCount}
-            rowHeight={rowHeight + 12}
+            rowHeight={rowHeight}
             rowComponent={RowComponent}
             rowProps={rowProps}
             overscanCount={3}
