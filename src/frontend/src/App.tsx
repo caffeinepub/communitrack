@@ -50,7 +50,7 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import type React from "react";
+import React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
@@ -2714,7 +2714,10 @@ const parseCSVData = (csvText: string) => {
         pricingType === "fixed" ? 0 : (members || 0) * (ticketSize || 0);
 
       return {
-        id: `node-${index}-${Math.random().toString(36).substr(2, 4)}`,
+        id: `node-${(url || name || "")
+          .replace(/[^a-z0-9]/gi, "")
+          .toLowerCase()
+          .slice(0, 20)}-${index}`,
         name: name,
         creatorName: "Network Node",
         members: members || 0,
@@ -3111,6 +3114,7 @@ export default function App() {
   const [isARR, setIsARR] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState(""); // immediate visual state
   const [mrrFilter, setMrrFilter] = useState("all");
   const [langFilter, setLangFilter] = useState("All");
   const [ticketFilter, setTicketFilter] = useState("All");
@@ -3135,6 +3139,9 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isScrollFocused, setIsScrollFocused] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastScrollTopRef = useRef(0);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
 
@@ -3249,6 +3256,18 @@ export default function App() {
           paidData.reduce((a, c) => a + c.activeTicket, 0) / paidData.length,
         )
       : 0;
+  }, [filteredData]);
+
+  // FIX 8: Single O(n) pass for tier counts instead of 4 separate inline filter passes
+  const tierCounts = useMemo(() => {
+    const counts = { ultra: 0, high: 0, mid: 0, low: 0 };
+    for (const d of filteredData) {
+      if (d.mrr >= 100000) counts.ultra++;
+      else if (d.mrr >= 25000) counts.high++;
+      else if (d.mrr >= 10000) counts.mid++;
+      else if (d.mrr >= 1000) counts.low++;
+    }
+    return counts;
   }, [filteredData]);
 
   const handleFileUpload = useCallback(
@@ -3374,15 +3393,20 @@ export default function App() {
         | "top500"
         | "megaall",
     ) => {
+      // Batch all synchronous state resets in one pass (React 18 batches these automatically)
       setActiveCategory(cat);
-      setMrrFilter("all");
-      setLangFilter("All");
-      setTicketFilter("All");
-      setFreeTierFilter("none");
-      setSearch("");
-      setShowFixed(false);
-      setShowYearly(false);
       setIsLoading(true);
+      // Defer non-critical filter resets to next microtask to avoid blocking the loading indicator
+      Promise.resolve().then(() => {
+        setMrrFilter("all");
+        setLangFilter("All");
+        setTicketFilter("All");
+        setFreeTierFilter("none");
+        setSearch("");
+        setSearchInput("");
+        setShowFixed(false);
+        setShowYearly(false);
+      });
       try {
         const data = await loadCategoryData(cat);
         setCommunities(data);
@@ -3401,6 +3425,7 @@ export default function App() {
 
   const clearFilters = useCallback(() => {
     setSearch("");
+    setSearchInput("");
     setLangFilter("All");
     setMrrFilter("all");
     setTicketFilter("All");
@@ -3417,16 +3442,57 @@ export default function App() {
     });
   }, [loadCategoryData]);
 
-  // Debounced search handler
+  // Auto-redirect from Ledger view on mobile (Ledger is desktop-only)
+  useEffect(() => {
+    if (view === "table" && window.innerWidth < 768) {
+      setView("gallery");
+    }
+  }, [view]);
+
+  // Debounced search handler - searchInput updates immediately for visual responsiveness
+  // search state updates after 150ms debounce for actual filtering
   const handleSearch = useCallback((val: string) => {
+    setSearchInput(val); // immediate visual update - no lag
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => setSearch(val), 150);
   }, []);
 
   const handleZenMode = useCallback((status: boolean) => {
     setIsZenMode(status);
-    if (status) setIsChatOpen(false);
+    if (status) {
+      setIsChatOpen(false);
+      setIsScrollFocused(false);
+    }
   }, []);
+
+  // Scroll-driven focus mode (RAF-throttled to prevent 60 re-renders/sec)
+  const rafPendingRef = useRef(false);
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const handler = () => {
+      if (rafPendingRef.current) return;
+      rafPendingRef.current = true;
+      requestAnimationFrame(() => {
+        rafPendingRef.current = false;
+        const st = el.scrollTop;
+        const delta = st - lastScrollTopRef.current;
+        if (delta > 8 && st > 80) {
+          setIsScrollFocused(true);
+        } else if (delta < -8) {
+          setIsScrollFocused(false);
+        }
+        lastScrollTopRef.current = st;
+      });
+    };
+    el.addEventListener("scroll", handler, { passive: true });
+    return () => el.removeEventListener("scroll", handler);
+  }, []);
+
+  // Reset scroll focus when zen mode activates
+  useEffect(() => {
+    if (isZenMode) setIsScrollFocused(false);
+  }, [isZenMode]);
 
   return (
     <div className="fixed inset-0 bg-[#09090b] text-zinc-100 flex flex-col font-sans antialiased overflow-hidden">
@@ -3463,7 +3529,7 @@ export default function App() {
                   setIncludeFreeThreshold(null);
                   setIsFreeModalOpen(false);
                 }}
-                className="px-4 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all duration-150 active:scale-95"
+                className="px-4 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all duration-200 ease-out active:scale-95"
               >
                 Disable Free
               </button>
@@ -3474,7 +3540,7 @@ export default function App() {
                   setFreeTierFilter("none");
                   setIsFreeModalOpen(false);
                 }}
-                className="px-5 py-2 bg-zinc-200 hover:bg-white text-black text-xs font-bold rounded-lg transition-all duration-150 active:scale-95"
+                className="px-5 py-2 bg-zinc-200 hover:bg-white text-black text-xs font-bold rounded-lg transition-all duration-200 ease-out active:scale-95"
               >
                 Apply Filter
               </button>
@@ -3483,13 +3549,21 @@ export default function App() {
         </div>
       )}
 
-      {!isZenMode && (
+      <div
+        className={`shrink-0 transform-gpu transition-[transform,opacity] duration-300 ease-out will-change-transform ${
+          isZenMode
+            ? "hidden"
+            : isScrollFocused
+              ? "-translate-y-full opacity-0 h-0 overflow-hidden"
+              : "translate-y-0 opacity-100"
+        }`}
+      >
         <header className="h-14 flex items-center gap-2 px-3 md:px-4 shrink-0 bg-[#09090b]/95 backdrop-blur-sm border-b border-zinc-800/60 z-20">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => setIsLeftOpen(!isLeftOpen)}
-              className={`p-1.5 rounded-md motion-safe:transition-all duration-150 active:scale-95 hidden md:flex items-center justify-center min-w-[36px] min-h-[36px] ${isLeftOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`p-1.5 rounded-md motion-safe:transition-all duration-200 ease-out active:scale-95 hidden md:flex items-center justify-center min-w-[36px] min-h-[36px] ${isLeftOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
             >
               {isLeftOpen ? (
                 <PanelLeftClose className="w-4 h-4" />
@@ -3604,7 +3678,7 @@ export default function App() {
                       )
                     }
                     title={label}
-                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95 shrink-0 ${isActive ? `${activeClass} shadow-md` : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
+                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-[transform,background-color,color,box-shadow] duration-200 ease-out active:scale-95 shrink-0 ${isActive ? `${activeClass} shadow-md` : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
                   >
                     <Icon
                       className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : iconColor}`}
@@ -3616,7 +3690,7 @@ export default function App() {
                         opacity: isActive ? 1 : 0,
                         overflow: "hidden",
                         transition:
-                          "max-width 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.12s ease",
+                          "max-width 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.15s ease",
                         whiteSpace: "nowrap",
                         display: "inline-block",
                       }}
@@ -3642,7 +3716,7 @@ export default function App() {
                       handleCategorySwitch(isActive ? "discovery" : "top500")
                     }
                     title="Top 500"
-                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95 shrink-0 ${isActive ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-md shadow-amber-900/40" : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
+                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ease-out active:scale-95 shrink-0 ${isActive ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-md shadow-amber-900/40" : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
                   >
                     <Trophy
                       className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : "text-amber-500"}`}
@@ -3654,7 +3728,7 @@ export default function App() {
                         opacity: isActive ? 1 : 0,
                         overflow: "hidden",
                         transition:
-                          "max-width 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.12s ease",
+                          "max-width 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.15s ease",
                         whiteSpace: "nowrap",
                         display: "inline-block",
                       }}
@@ -3677,7 +3751,7 @@ export default function App() {
                       handleCategorySwitch(isActive ? "discovery" : "megaall")
                     }
                     title="Mega All"
-                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95 shrink-0 ${isActive ? "bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-900/40" : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
+                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ease-out active:scale-95 shrink-0 ${isActive ? "bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-900/40" : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
                   >
                     <Layers
                       className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : "text-indigo-400"}`}
@@ -3689,7 +3763,7 @@ export default function App() {
                         opacity: isActive ? 1 : 0,
                         overflow: "hidden",
                         transition:
-                          "max-width 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.12s ease",
+                          "max-width 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.15s ease",
                         whiteSpace: "nowrap",
                         display: "inline-block",
                       }}
@@ -3707,14 +3781,17 @@ export default function App() {
                 ref={searchInputRef}
                 type="text"
                 placeholder="Search..."
-                value={search}
+                value={searchInput}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="w-24 sm:w-32 bg-zinc-900/80 border border-zinc-800/80 rounded-full py-1.5 pl-7 pr-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 focus:w-32 sm:focus:w-40 motion-safe:transition-all duration-200 min-h-[36px]"
+                className="w-24 sm:w-32 bg-zinc-900/80 border border-zinc-800/80 rounded-full py-1.5 pl-7 pr-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 transition-[border-color,background-color] duration-200 min-h-[36px]"
               />
               {search && (
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
+                  onClick={() => {
+                    setSearch("");
+                    setSearchInput("");
+                  }}
                   className="absolute right-2 text-zinc-500 hover:text-zinc-300"
                 >
                   <X className="w-3 h-3" />
@@ -3727,7 +3804,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => handleZenMode(true)}
-              className="p-1.5 rounded-md transition-all duration-150 bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95"
+              className="p-1.5 rounded-md transition-all duration-200 ease-out bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95"
               title="Focus Mode"
             >
               <Maximize2 className="w-4 h-4" />
@@ -3738,7 +3815,7 @@ export default function App() {
               type="button"
               data-ocid="mobile.filter.button"
               onClick={() => setMobileFilterOpen(true)}
-              className="flex md:hidden p-1.5 rounded-md transition-all duration-150 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95 min-w-[36px] min-h-[36px] items-center justify-center"
+              className="flex md:hidden p-1.5 rounded-md transition-all duration-200 ease-out text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95 min-w-[36px] min-h-[36px] items-center justify-center"
               title="Filters"
             >
               <Filter className="w-4 h-4" />
@@ -3747,7 +3824,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-              className={`hidden md:flex p-1.5 rounded-md transition-all duration-150 border active:scale-95 ${isFiltersOpen ? "bg-zinc-800 border-zinc-700 text-zinc-200" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`flex p-1.5 rounded-md transition-all duration-200 ease-out border active:scale-95 transition-transform duration-75 ${isFiltersOpen ? "bg-zinc-800 border-zinc-700 text-zinc-200" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
               title="Toggle Advanced Filters"
             >
               {isFiltersOpen ? (
@@ -3763,14 +3840,14 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setIsARR(false)}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-150 active:scale-95 ${!isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-200 ease-out active:scale-95 ${!isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
               >
                 MRR
               </button>
               <button
                 type="button"
                 onClick={() => setIsARR(true)}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-150 active:scale-95 ${isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all duration-200 ease-out active:scale-95 ${isARR ? "bg-zinc-700 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
               >
                 ARR
               </button>
@@ -3780,7 +3857,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setCurrency(currency === "USD" ? "INR" : "USD")}
-                className="text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-all duration-150 active:scale-95 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md"
+                className="text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-all duration-200 ease-out active:scale-95 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md"
               >
                 {currency === "USD" ? (
                   <DollarSign className="w-3.5 h-3.5" />
@@ -3819,7 +3896,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsChatOpen(!isChatOpen)}
-              className={`hidden lg:flex p-1.5 rounded-md transition-all duration-150 border active:scale-95 ${isChatOpen ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-400" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`hidden lg:flex p-1.5 rounded-md transition-all duration-200 ease-out border active:scale-95 ${isChatOpen ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-400" : "bg-transparent border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
               title="AI Copilot"
             >
               <Bot className="w-4 h-4" />
@@ -3828,7 +3905,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsRightOpen(!isRightOpen)}
-              className={`p-1.5 rounded-md transition-all duration-150 active:scale-95 ${isRightOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`p-1.5 rounded-md transition-all duration-200 ease-out active:scale-95 ${isRightOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
             >
               {isRightOpen ? (
                 <PanelRightClose className="w-4 h-4" />
@@ -3838,65 +3915,329 @@ export default function App() {
             </button>
           </div>
         </header>
-      )}
+      </div>
 
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Mobile sidebar overlay */}
-        {mobileFilterOpen && (
+        {/* Mobile filter bottom sheet - always in DOM, controlled by CSS transforms */}
+        <div
+          className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ease-out ${mobileFilterOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+          data-ocid="mobile.filter.modal"
+        >
+          <button
+            type="button"
+            aria-label="Close filters"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm w-full h-full"
+            onClick={() => setMobileFilterOpen(false)}
+          />
           <div
-            className="fixed inset-0 z-50 md:hidden"
-            data-ocid="mobile.filter.modal"
+            className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 max-h-[82vh] flex flex-col overflow-hidden motion-safe:transition-transform motion-safe:duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${mobileFilterOpen ? "translate-y-0" : "translate-y-full"}`}
           >
-            <button
-              type="button"
-              aria-label="Close filters"
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm w-full h-full"
-              onClick={() => setMobileFilterOpen(false)}
-            />
-            <aside className="absolute left-0 top-0 bottom-0 w-[280px] bg-[#09090b] border-r border-zinc-800/80 flex flex-col overflow-y-auto custom-scrollbar z-10 translate-x-0 motion-safe:transition-transform motion-safe:duration-200">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/60 shrink-0">
-                <span className="text-sm font-bold text-zinc-200">Filters</span>
+            {/* Drag handle */}
+            <div className="w-10 h-1 bg-zinc-600 rounded-full mx-auto mt-3 mb-2 shrink-0" />
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60 shrink-0">
+              <span className="text-sm font-bold text-zinc-200">Filters</span>
+              <button
+                type="button"
+                data-ocid="mobile.filter.close_button"
+                onClick={() => setMobileFilterOpen(false)}
+                className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 active:scale-95 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Scrollable filter content */}
+            <div className="overflow-y-auto custom-scrollbar flex-1">
+              {/* Sort */}
+              <div className="p-3 space-y-1 mt-2 pt-2">
+                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                  Sort By
+                </div>
+                {[
+                  { id: "mrr", label: "Revenue" },
+                  { id: "members", label: "Members" },
+                  { id: "arpu", label: "Ticket Price" },
+                ].map((s) => (
+                  <button
+                    type="button"
+                    key={s.id}
+                    onClick={() => setSortBy(s.id)}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  >
+                    <span className="text-[12px] font-bold">{s.label}</span>
+                    {sortBy === s.id && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+                        }}
+                        className="ml-auto p-1 rounded hover:bg-zinc-700 text-zinc-300 transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
+                      >
+                        {sortDir === "desc" ? (
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Pricing Type */}
+              <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4">
+                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                  Pricing Type
+                </div>
                 <button
                   type="button"
-                  data-ocid="mobile.filter.close_button"
-                  onClick={() => setMobileFilterOpen(false)}
-                  className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 active:scale-95 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                  data-ocid="pricing.fixed.toggle"
+                  onClick={() => {
+                    setShowFixed((v) => !v);
+                    setShowYearly(false);
+                  }}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
-                  <X className="w-4 h-4" />
+                  <span className="text-base">🏷️</span>
+                  <span className="text-[12px] font-bold">
+                    One-Time / Fixed
+                  </span>
+                  {showFixed && (
+                    <span className="ml-auto text-[9px] font-bold bg-amber-500/30 text-amber-300 px-1.5 py-0.5 rounded-full">
+                      ON
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  data-ocid="pricing.yearly.toggle"
+                  onClick={() => {
+                    setShowYearly((v) => !v);
+                    setShowFixed(false);
+                  }}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 min-h-[44px] ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                >
+                  <span className="text-base">📅</span>
+                  <span className="text-[12px] font-bold">
+                    Yearly Memberships
+                  </span>
+                  {showYearly && (
+                    <span className="ml-auto text-[9px] font-bold bg-sky-500/30 text-sky-300 px-1.5 py-0.5 rounded-full">
+                      ON
+                    </span>
+                  )}
                 </button>
               </div>
-              <div className="w-[280px] flex flex-col flex-1">
-                <div className="p-3 space-y-1 mt-2 pt-2">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 py-2">
-                    Workspace
+
+              {/* Pipeline Tiers */}
+              <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4">
+                <div className="flex justify-between items-center px-3 pb-2">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                    Pipeline Tiers
                   </div>
-                  {[
-                    { id: "gallery", icon: LayoutGrid, label: "Cards View" },
-                    { id: "table", icon: Table2, label: "Data Ledger" },
-                    { id: "analytics", icon: BarChart3, label: "Observatory" },
-                  ].map((item) => (
+                  {mrrFilter !== "all" && (
                     <button
                       type="button"
-                      key={item.id}
-                      onClick={() => {
-                        setView(item.id);
-                        setMobileFilterOpen(false);
-                      }}
-                      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-150 text-sm font-medium active:scale-95 min-h-[44px] ${view === item.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                      onClick={() => setMrrFilter("all")}
+                      className="text-[9px] text-zinc-400 hover:text-white uppercase font-bold tracking-wider"
                     >
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      {item.label}
+                      Clear
                     </button>
-                  ))}
+                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setMrrFilter("all")}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${mrrFilter === "all" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                >
+                  <div className="w-3.5 h-3.5 rounded-sm bg-zinc-700 flex items-center justify-center text-[8px] font-black shrink-0 text-white">
+                    ALL
+                  </div>
+                  <span className="text-[12px] font-bold">All Pipeline</span>
+                </button>
+                {REVENUE_TIERS.map((tier) => (
+                  <button
+                    type="button"
+                    key={tier.id}
+                    onClick={() => {
+                      setMrrFilter(tier.id);
+                      setFreeTierFilter("none");
+                    }}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${mrrFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  >
+                    <tier.icon
+                      className={`w-3.5 h-3.5 shrink-0 ${tier.color}`}
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[12px] font-bold leading-tight">
+                        {tier.label}
+                      </span>
+                      <span className="text-[9px] font-medium text-zinc-600 leading-tight mt-0.5">
+                        {tier.desc}
+                      </span>
+                    </div>
+                  </button>
+                ))}
               </div>
-            </aside>
+
+              {/* Ticket Size */}
+              <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4">
+                <div className="flex justify-between items-center px-3 pb-2">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                    Ticket Size
+                  </div>
+                  {ticketFilter !== "All" && (
+                    <button
+                      type="button"
+                      onClick={() => setTicketFilter("All")}
+                      className="text-[9px] text-zinc-400 hover:text-white uppercase font-bold tracking-wider"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTicketFilter("All")}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${ticketFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                >
+                  <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
+                    ALL
+                  </div>
+                  <span className="text-[12px] font-bold">All Tickets</span>
+                </button>
+                {TICKET_TIERS.map((tier) => (
+                  <button
+                    type="button"
+                    key={tier.id}
+                    onClick={() => {
+                      setTicketFilter(tier.id);
+                      setFreeTierFilter("none");
+                    }}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${ticketFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  >
+                    <div
+                      className={`w-6 h-4 rounded ${tier.bg} ${tier.text} text-[7px] flex items-center justify-center font-black shrink-0 shadow-sm`}
+                    >
+                      {tier.abbr}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[12px] font-bold leading-tight">
+                        {tier.label}
+                      </span>
+                      <span className="text-[9px] font-medium text-zinc-600 leading-tight mt-0.5">
+                        {tier.desc}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Free Only View */}
+              <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4">
+                <div className="flex justify-between items-start px-3 pb-2">
+                  <div className="flex flex-col">
+                    <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+                      Free Only View
+                    </div>
+                    <span className="text-[8px] text-zinc-500 font-medium leading-tight mt-0.5">
+                      (Only Free Shown)
+                    </span>
+                  </div>
+                  {freeTierFilter !== "none" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFreeTierFilter("none");
+                        setIncludeFreeThreshold(null);
+                      }}
+                      className="text-[9px] text-indigo-400 hover:text-indigo-300 uppercase font-bold tracking-wider"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFreeTierFilter("all");
+                    setMrrFilter("all");
+                    setTicketFilter("All");
+                  }}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${freeTierFilter === "all" ? "bg-indigo-500/20 text-indigo-300" : "text-zinc-400 hover:bg-zinc-900"}`}
+                >
+                  <span className="text-[12px] font-bold">
+                    All Free Communities
+                  </span>
+                </button>
+                {FREE_TIERS.map((tier) => (
+                  <button
+                    type="button"
+                    key={tier.id}
+                    onClick={() => {
+                      setFreeTierFilter(tier.id);
+                      setMrrFilter("all");
+                      setTicketFilter("All");
+                    }}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${freeTierFilter === tier.id ? `${tier.activeBg} ${tier.activeText}` : `${tier.color} hover:bg-zinc-900`}`}
+                  >
+                    <span className="text-[12px] font-bold leading-tight">
+                      {tier.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Region */}
+              <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4 pb-6">
+                <div className="flex justify-between items-center px-3 pb-2">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                    Region
+                  </div>
+                  {langFilter !== "All" && (
+                    <button
+                      type="button"
+                      onClick={() => setLangFilter("All")}
+                      className="text-[9px] text-zinc-400 hover:text-white uppercase font-bold tracking-wider"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLangFilter("All")}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${langFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                >
+                  <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
+                    ALL
+                  </div>
+                  <span className="text-[12px] font-bold">All Regions</span>
+                </button>
+                {uniqueLangs.map((l) => (
+                  <button
+                    type="button"
+                    key={l.lang}
+                    onClick={() => setLangFilter(l.lang)}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 min-h-[44px] ${langFilter === l.lang ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  >
+                    <div className="text-base shrink-0">{l.flag}</div>
+                    <div className="flex flex-col">
+                      <span className="text-[12px] font-bold leading-tight">
+                        {l.lang}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
+        </div>
 
         {!isZenMode && (
           <aside
-            className={`border-r border-zinc-800/80 bg-[#09090b] hidden md:flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform-gpu motion-safe:transition-all duration-200 ${isLeftOpen ? "w-[230px] opacity-100" : "w-0 opacity-0 border-none"}`}
+            className={`border-r border-zinc-800/80 bg-[#09090b] hidden md:flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform-gpu will-change-transform motion-safe:transition-[transform,opacity,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isLeftOpen ? "w-[230px] opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-full border-none"}`}
           >
             <div className="w-[230px] flex flex-col min-h-full">
               <div className="p-3 space-y-1 mt-2 pt-2">
@@ -3912,7 +4253,7 @@ export default function App() {
                     type="button"
                     key={item.id}
                     onClick={() => setView(item.id)}
-                    className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-all duration-150 text-sm font-medium active:scale-95 ${view === item.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 ${view === item.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                   >
                     <item.icon className="w-4 h-4 shrink-0" />
                     {item.label}
@@ -3932,7 +4273,7 @@ export default function App() {
                     setShowFixed((v) => !v);
                     setShowYearly(false);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
                   <span className="text-base">🏷️</span>
                   <span className="text-[12px] font-bold">
@@ -3951,7 +4292,7 @@ export default function App() {
                     setShowYearly((v) => !v);
                     setShowFixed(false);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
                 >
                   <span className="text-base">📅</span>
                   <span className="text-[12px] font-bold">
@@ -3984,7 +4325,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMrrFilter("all")}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${mrrFilter === "all" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${mrrFilter === "all" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-3.5 h-3.5 rounded-sm bg-zinc-700 flex items-center justify-center text-[8px] font-black shrink-0 text-white">
                     ALL
@@ -4000,7 +4341,7 @@ export default function App() {
                       setMrrFilter(tier.id);
                       setFreeTierFilter("none");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${mrrFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${mrrFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <tier.icon
                       className={`w-3.5 h-3.5 shrink-0 ${tier.color}`}
@@ -4036,7 +4377,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setTicketFilter("All")}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${ticketFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${ticketFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
                     ALL
@@ -4052,7 +4393,7 @@ export default function App() {
                       setTicketFilter(tier.id);
                       setFreeTierFilter("none");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${ticketFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${ticketFilter === tier.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <div
                       className={`w-6 h-4 rounded ${tier.bg} ${tier.text} text-[7px] flex items-center justify-center font-black shrink-0 shadow-sm`}
@@ -4102,7 +4443,7 @@ export default function App() {
                     setMrrFilter("all");
                     setTicketFilter("All");
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${freeTierFilter === "all" ? "bg-indigo-500/20 text-indigo-300" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${freeTierFilter === "all" ? "bg-indigo-500/20 text-indigo-300" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <span className="text-[12px] font-bold">
                     All Free Communities
@@ -4118,7 +4459,7 @@ export default function App() {
                       setMrrFilter("all");
                       setTicketFilter("All");
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${
                       freeTierFilter === tier.id
                         ? `${tier.activeBg} ${tier.activeText}`
                         : `${tier.color} hover:bg-zinc-900`
@@ -4150,7 +4491,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setLangFilter("All")}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${langFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${langFilter === "All" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                 >
                   <div className="w-6 h-4 rounded bg-zinc-700 text-white text-[7px] flex items-center justify-center font-black shrink-0">
                     ALL
@@ -4163,7 +4504,7 @@ export default function App() {
                     type="button"
                     key={l.lang}
                     onClick={() => setLangFilter(l.lang)}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-left active:scale-95 ${langFilter === l.lang ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-200 ease-out text-left active:scale-95 ${langFilter === l.lang ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <div className="text-base shrink-0">{l.flag}</div>
                     <div className="flex flex-col">
@@ -4186,7 +4527,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center justify-center gap-2 w-full py-2 bg-zinc-100 text-zinc-900 rounded-lg text-xs font-bold hover:bg-white transition-all duration-150 active:scale-95"
+                  className="flex items-center justify-center gap-2 w-full py-2 bg-zinc-100 text-zinc-900 rounded-lg text-xs font-bold hover:bg-white transition-all duration-200 ease-out active:scale-95"
                 >
                   <Upload className="w-3.5 h-3.5" /> Import CSV
                 </button>
@@ -4198,10 +4539,10 @@ export default function App() {
         <main className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a]">
           {!isZenMode && (
             <div
-              className={`overflow-hidden transition-all duration-200 ease-in-out shrink-0 border-b border-zinc-800/50 bg-[#0a0a0a] ${
-                isFiltersOpen
-                  ? "max-h-32 opacity-100 py-2"
-                  : "max-h-0 opacity-0 pointer-events-none border-none"
+              className={`overflow-hidden transition-[transform,opacity] duration-200 ease-in-out shrink-0 border-b border-zinc-800/50 bg-[#0a0a0a] will-change-transform origin-top ${
+                isFiltersOpen && !isScrollFocused
+                  ? "opacity-100 py-2 scale-y-100"
+                  : "opacity-0 pointer-events-none border-none scale-y-0 h-0"
               }`}
             >
               <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-between px-4">
@@ -4321,7 +4662,10 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 lg:p-6 pb-4 md:pb-6 custom-scrollbar bg-[#0a0a0a] relative">
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto p-3 md:p-4 lg:p-6 pb-4 md:pb-6 custom-scrollbar bg-[#0a0a0a] relative"
+          >
             {isLoading ? (
               <div className="flex flex-col items-center justify-center h-64 gap-4">
                 <div className="w-8 h-8 border-2 border-zinc-700 border-t-violet-500 rounded-full animate-spin" />
@@ -4340,7 +4684,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setHideNoMatch((v) => !v)}
-                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-150 active:scale-95 ${hideNoMatch ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ease-out active:scale-95 ${hideNoMatch ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
                         >
                           {hideNoMatch
                             ? "⚡ Comparisons only"
@@ -4354,7 +4698,7 @@ export default function App() {
                               v === "growth" ? "all" : "growth",
                             )
                           }
-                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-150 active:scale-95 ${mrrDeltaFilter === "growth" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ease-out active:scale-95 ${mrrDeltaFilter === "growth" ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
                         >
                           ↑ MRR Growth
                         </button>
@@ -4365,7 +4709,7 @@ export default function App() {
                               v === "declined" ? "all" : "declined",
                             )
                           }
-                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-150 active:scale-95 ${mrrDeltaFilter === "declined" ? "bg-rose-500/15 border-rose-500/40 text-rose-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ease-out active:scale-95 ${mrrDeltaFilter === "declined" ? "bg-rose-500/15 border-rose-500/40 text-rose-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
                         >
                           ↓ MRR Declined
                         </button>
@@ -4417,7 +4761,7 @@ export default function App() {
 
         {!isZenMode && (
           <aside
-            className={`border-l border-zinc-800/80 bg-[#09090b] flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform-gpu motion-safe:transition-all duration-200 ${isRightOpen ? "w-64 opacity-100" : "w-0 opacity-0 border-none"}`}
+            className={`border-l border-zinc-800/80 bg-[#09090b] flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform-gpu will-change-transform motion-safe:transition-[transform,opacity,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isRightOpen ? "w-64 opacity-100 translate-x-0" : "w-0 opacity-0 translate-x-full border-none"}`}
           >
             <div className="w-64 flex flex-col min-h-full">
               <div className="p-4 border-b border-zinc-800/80">
@@ -4463,29 +4807,22 @@ export default function App() {
                     {[
                       {
                         label: "Whale",
-                        count: filteredData.filter((d) => d.mrr >= 100000)
-                          .length,
+                        count: tierCounts.ultra,
                         color: "bg-rose-500",
                       },
                       {
                         label: "Pro",
-                        count: filteredData.filter(
-                          (d) => d.mrr >= 25000 && d.mrr < 100000,
-                        ).length,
+                        count: tierCounts.high,
                         color: "bg-yellow-500",
                       },
                       {
                         label: "Growth",
-                        count: filteredData.filter(
-                          (d) => d.mrr >= 10000 && d.mrr < 25000,
-                        ).length,
+                        count: tierCounts.mid,
                         color: "bg-lime-500",
                       },
                       {
                         label: "Seed",
-                        count: filteredData.filter(
-                          (d) => d.mrr >= 1000 && d.mrr < 10000,
-                        ).length,
+                        count: tierCounts.low,
                         color: "bg-fuchsia-400",
                       },
                     ].map((t) => (
@@ -4498,7 +4835,7 @@ export default function App() {
                         </div>
                         <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
                           <div
-                            className={`h-full ${t.color} transition-all duration-500 ease-out`}
+                            className={`h-full ${t.color} transition-all duration-700 ease-out`}
                             style={{
                               width: `${filteredData.length ? (t.count / filteredData.length) * 100 : 0}%`,
                             }}
@@ -4528,10 +4865,11 @@ export default function App() {
 
       {/* Mobile bottom nav bar - only shown on mobile, not in zen mode */}
       {!isZenMode && (
-        <nav className="flex md:hidden shrink-0 items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 pb-safe z-30">
+        <nav
+          className={`flex md:hidden shrink-0 items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 pb-safe z-30 transform-gpu will-change-transform transition-[transform,opacity] duration-300 ease-out ${isScrollFocused ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}
+        >
           {[
             { id: "gallery", Icon: LayoutGrid, label: "Cards" },
-            { id: "table", Icon: Table2, label: "Ledger" },
             { id: "analytics", Icon: BarChart3, label: "Charts" },
           ].map(({ id, Icon, label }) => (
             <button
@@ -4539,7 +4877,7 @@ export default function App() {
               type="button"
               data-ocid={`mobile.view.${id}.tab`}
               onClick={() => setView(id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-200 ease-out active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
             >
               <Icon className="w-5 h-5" />
               <span className="text-[10px] font-semibold">{label}</span>
@@ -4549,31 +4887,14 @@ export default function App() {
             type="button"
             data-ocid="mobile.filter.open_modal_button"
             onClick={() => setMobileFilterOpen(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 text-zinc-500 hover:text-zinc-300"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-200 ease-out active:scale-95 text-zinc-500 hover:text-zinc-300"
           >
             <Filter className="w-5 h-5" />
             <span className="text-[10px] font-semibold">Filters</span>
           </button>
           {/* 5th button: Category picker */}
           {(() => {
-            const catIconMap: Record<
-              string,
-              { Icon: React.FC<{ className?: string }>; color: string }
-            > = {
-              discovery: { Icon: Telescope, color: "text-violet-400" },
-              music: { Icon: Music2, color: "text-pink-400" },
-              selfimprovement: { Icon: Brain, color: "text-cyan-400" },
-              money: { Icon: Banknote, color: "text-emerald-400" },
-              spirituality: { Icon: Sun, color: "text-amber-400" },
-              tech: { Icon: Cpu, color: "text-blue-400" },
-              health: { Icon: Activity, color: "text-red-400" },
-              relationships: { Icon: HeartHandshake, color: "text-rose-400" },
-              sports: { Icon: Dumbbell, color: "text-orange-400" },
-              hobbies: { Icon: Wand2, color: "text-purple-400" },
-              top500: { Icon: Trophy, color: "text-amber-500" },
-              megaall: { Icon: Layers, color: "text-indigo-400" },
-            };
-            const active = catIconMap[activeCategory] ?? {
+            const active = CAT_ICON_MAP[activeCategory] ?? {
               Icon: Grid3x3,
               color: "text-zinc-400",
             };
@@ -4583,7 +4904,7 @@ export default function App() {
                 type="button"
                 data-ocid="mobile.category.open_modal_button"
                 onClick={() => setMobileCategoryOpen(true)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 ${mobileCategoryOpen ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-200 ease-out active:scale-95 ${mobileCategoryOpen ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
               >
                 <ActiveIcon className={`w-5 h-5 ${active.color}`} />
                 <span className="text-[10px] font-semibold">Category</span>
@@ -4595,7 +4916,7 @@ export default function App() {
 
       {/* Mobile category picker overlay */}
       <div
-        className={`fixed inset-0 z-50 md:hidden transition-all duration-250 ease-out ${mobileCategoryOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ease-out ${mobileCategoryOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
         data-ocid="mobile.category.modal"
       >
         {/* Backdrop */}
@@ -4607,7 +4928,7 @@ export default function App() {
         />
         {/* Slide-up sheet */}
         <div
-          className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 motion-safe:transition-transform motion-safe:duration-250 ease-out ${mobileCategoryOpen ? "translate-y-0" : "translate-y-full"}`}
+          className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 motion-safe:transition-transform motion-safe:duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${mobileCategoryOpen ? "translate-y-0" : "translate-y-full"}`}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
@@ -4753,7 +5074,7 @@ export default function App() {
                       );
                       setMobileCategoryOpen(false);
                     }}
-                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl min-h-[56px] border active:scale-95 transition-all duration-100 ${
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl min-h-[56px] border active:scale-[0.96] transition-all duration-150 hover:scale-[1.03] ${
                       isActive
                         ? `${activeBg} text-white`
                         : "bg-zinc-900/80 border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80"
@@ -4786,7 +5107,7 @@ export default function App() {
 
 // --- SUBVIEWS ---
 
-function Top500ComparisonCard({
+const Top500ComparisonCard = React.memo(function Top500ComparisonCard({
   community,
   match,
   currency,
@@ -4833,7 +5154,7 @@ function Top500ComparisonCard({
         boxShadow: glowStyle.boxShadow,
         borderColor: glowStyle.borderColor,
       }}
-      className={`group relative flex flex-col p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-150 rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${community.url ? "cursor-pointer" : ""}`}
+      className={`group relative flex flex-col p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-200 ease-out rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${community.url ? "cursor-pointer" : ""}`}
     >
       {/* Header */}
       <div className="flex items-center gap-2 min-w-0 mb-3">
@@ -4937,7 +5258,41 @@ function Top500ComparisonCard({
       )}
     </button>
   );
+});
+
+function findMatchInMap(
+  c: { url?: string; name: string },
+  discoveryMap?: {
+    slugMap: Map<string, Community>;
+    nameMap: Map<string, Community>;
+  },
+): Community | undefined {
+  if (!discoveryMap) return undefined;
+  const slug = extractSlug(c.url || "");
+  if (slug) {
+    const m = discoveryMap.slugMap.get(slug);
+    if (m) return m;
+  }
+  return discoveryMap.nameMap.get(normalizeName(c.name));
 }
+
+const CAT_ICON_MAP: Record<
+  string,
+  { Icon: React.FC<{ className?: string }>; color: string }
+> = {
+  discovery: { Icon: Telescope, color: "text-violet-400" },
+  music: { Icon: Music2, color: "text-pink-400" },
+  selfimprovement: { Icon: Brain, color: "text-cyan-400" },
+  money: { Icon: Banknote, color: "text-emerald-400" },
+  spirituality: { Icon: Sun, color: "text-amber-400" },
+  tech: { Icon: Cpu, color: "text-blue-400" },
+  health: { Icon: Activity, color: "text-red-400" },
+  relationships: { Icon: HeartHandshake, color: "text-rose-400" },
+  sports: { Icon: Dumbbell, color: "text-orange-400" },
+  hobbies: { Icon: Wand2, color: "text-purple-400" },
+  top500: { Icon: Trophy, color: "text-amber-500" },
+  megaall: { Icon: Layers, color: "text-indigo-400" },
+};
 
 const CATEGORY_META: Record<
   string,
@@ -4983,21 +5338,11 @@ const MinimalCardsView = memo(function MinimalCardsView({
 }) {
   if (data.length === 0) return <EmptyState />;
 
-  const findMatch = (c: EnrichedCommunity): Community | undefined => {
-    if (!discoveryMap) return undefined;
-    const slug = extractSlug(c.url);
-    if (slug) {
-      const m = discoveryMap.slugMap.get(slug);
-      if (m) return m;
-    }
-    return discoveryMap.nameMap.get(normalizeName(c.name));
-  };
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
       {data.map((community, index) => {
         if (discoveryMap) {
-          const match = findMatch(community);
+          const match = findMatchInMap(community, discoveryMap);
           if (match) {
             // Apply MRR delta filter
             if (mrrDeltaFilter !== "all") {
@@ -5029,7 +5374,7 @@ const MinimalCardsView = memo(function MinimalCardsView({
                 community.url && window.open(community.url, "_blank")
               }
               style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
-              className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-150 rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${
+              className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-200 ease-out rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${
                 community.url ? "cursor-pointer" : ""
               }`}
             >
@@ -5091,7 +5436,7 @@ const MinimalCardsView = memo(function MinimalCardsView({
               community.url && window.open(community.url, "_blank")
             }
             style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
-            className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-150 rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${
+            className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-200 ease-out rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${
               community.url ? "cursor-pointer" : ""
             }`}
           >
@@ -5223,16 +5568,6 @@ const LedgerView = memo(function LedgerView({
 }) {
   if (data.length === 0) return <EmptyState />;
 
-  const findLedgerMatch = (c: EnrichedCommunity): Community | undefined => {
-    if (!discoveryMap) return undefined;
-    const slug = extractSlug(c.url);
-    if (slug) {
-      const m = discoveryMap.slugMap.get(slug);
-      if (m) return m;
-    }
-    return discoveryMap.nameMap.get(normalizeName(c.name));
-  };
-
   return (
     <div className="bg-[#0a0a0a] border border-zinc-800 rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
@@ -5360,7 +5695,7 @@ const LedgerView = memo(function LedgerView({
                   {isTop500 &&
                     discoveryMap &&
                     (() => {
-                      const match = findLedgerMatch(community);
+                      const match = findMatchInMap(community, discoveryMap);
                       if (!match)
                         return (
                           <td className="p-3 pr-4 text-right text-zinc-600 font-mono text-[11px]">
@@ -5410,6 +5745,61 @@ const LedgerView = memo(function LedgerView({
   );
 });
 
+// Module-level tooltip component (stable reference, no unmount/remount)
+function ChartTooltip({
+  active,
+  payload,
+  format,
+  currency,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: Record<string, unknown> }>;
+  format: (a: number, c: string) => string;
+  currency: string;
+}) {
+  if (active && payload && payload.length) {
+    const pData = payload[0].payload;
+    return (
+      <div className="bg-[#111] border border-zinc-800 p-3 rounded-lg shadow-xl">
+        <p className="text-xs font-bold text-white mb-2">
+          {String(pData.name || pData.date || "")}
+        </p>
+        {pData.members !== undefined && (
+          <p className="text-[10px] text-zinc-400 font-mono">
+            Audience: {compactNumber(pData.members as number)}
+          </p>
+        )}
+        {pData.ticketSize !== undefined && (
+          <p className="text-[10px] text-zinc-400 font-mono">
+            Ticket: ${compactNumber(pData.ticketSize as number)}
+          </p>
+        )}
+        {pData.activeRevenue !== undefined && (
+          <p className="text-xs font-black text-white mt-1 font-mono">
+            {format(pData.activeRevenue as number, currency)}
+          </p>
+        )}
+        {pData.count !== undefined && (
+          <p className="text-xs font-bold text-white">
+            {String(pData.count)} Nodes
+          </p>
+        )}
+        {pData.revenue !== undefined && (
+          <p className="text-xs font-bold text-white">
+            {format(pData.revenue as number, currency)}
+          </p>
+        )}
+        {pData.value !== undefined && (
+          <p className="text-xs font-bold text-white">
+            {format(pData.value as number, currency)}
+          </p>
+        )}
+      </div>
+    );
+  }
+  return null;
+}
+
 const ObservatoryView = memo(function ObservatoryView({
   data,
   currency,
@@ -5423,140 +5813,83 @@ const ObservatoryView = memo(function ObservatoryView({
   isARR: boolean;
   totalRev: number;
 }) {
-  const scatterData = data.filter((d) => d.activeRevenue > 0);
-  const topEarners = [...data]
-    .sort((a, b) => b.activeRevenue - a.activeRevenue)
-    .slice(0, 10);
+  // FIX 9: Memoize all heavy computations to prevent recalculation on every render
+  const scatterData = useMemo(
+    () => data.filter((d) => d.activeRevenue > 0),
+    [data],
+  );
+  const topEarners = useMemo(
+    () =>
+      [...data].sort((a, b) => b.activeRevenue - a.activeRevenue).slice(0, 10),
+    [data],
+  );
 
-  const pieData = [
-    {
-      name: "$500k+",
-      value: data
-        .filter((d) => d.activeRevenue >= 500000)
-        .reduce((a, c) => a + c.activeRevenue, 0),
-      color: "#ef4444",
-    },
-    {
-      name: "$100k-$500k",
-      value: data
-        .filter((d) => d.activeRevenue >= 100000 && d.activeRevenue < 500000)
-        .reduce((a, c) => a + c.activeRevenue, 0),
-      color: "#fb7185",
-    },
-    {
-      name: "$25k-$100k",
-      value: data
-        .filter((d) => d.activeRevenue >= 25000 && d.activeRevenue < 100000)
-        .reduce((a, c) => a + c.activeRevenue, 0),
-      color: "#facc15",
-    },
-    {
-      name: "$10k-$25k",
-      value: data
-        .filter((d) => d.activeRevenue >= 10000 && d.activeRevenue < 25000)
-        .reduce((a, c) => a + c.activeRevenue, 0),
-      color: "#84cc16",
-    },
-    {
-      name: "$1k-$10k",
-      value: data
-        .filter((d) => d.activeRevenue >= 1000 && d.activeRevenue < 10000)
-        .reduce((a, c) => a + c.activeRevenue, 0),
-      color: "#f0abfc",
-    },
-    {
-      name: "<$1k",
-      value: data
-        .filter((d) => d.activeRevenue < 1000)
-        .reduce((a, c) => a + c.activeRevenue, 0),
-      color: "#a1a1aa",
-    },
-  ].filter((d) => d.value > 0);
-
-  let countFree = 0;
-  let countUnder50 = 0;
-  let count50to99 = 0;
-  let count100to499 = 0;
-  let count500plus = 0;
-  for (const d of data) {
-    if (d.ticketSize === 0) countFree++;
-    else if (d.ticketSize < 50) countUnder50++;
-    else if (d.ticketSize < 100) count50to99++;
-    else if (d.ticketSize < 500) count100to499++;
-    else count500plus++;
-  }
-  const priceHistogram = [
-    { name: "Free", count: countFree },
-    { name: "<$50", count: countUnder50 },
-    { name: "$50-$99", count: count50to99 },
-    { name: "$100-$499", count: count100to499 },
-    { name: "$500+", count: count500plus },
-  ];
-
-  const CustomTooltip = ({
-    active,
-    payload,
-  }: {
-    active?: boolean;
-    payload?: Array<{ payload: Record<string, unknown> }>;
-  }) => {
-    if (active && payload && payload.length) {
-      const pData = payload[0].payload;
-      return (
-        <div className="bg-[#111] border border-zinc-800 p-3 rounded-lg shadow-xl">
-          <p className="text-xs font-bold text-white mb-2">
-            {String(pData.name || pData.date || "")}
-          </p>
-          {pData.members !== undefined && (
-            <p className="text-[10px] text-zinc-400 font-mono">
-              Audience: {compactNumber(pData.members as number)}
-            </p>
-          )}
-          {pData.ticketSize !== undefined && (
-            <p className="text-[10px] text-zinc-400 font-mono">
-              Ticket: ${compactNumber(pData.ticketSize as number)}
-            </p>
-          )}
-          {pData.activeRevenue !== undefined && (
-            <p className="text-xs font-black text-white mt-1 font-mono">
-              {format(pData.activeRevenue as number, currency)}
-            </p>
-          )}
-          {pData.count !== undefined && (
-            <p className="text-xs font-bold text-white">
-              {String(pData.count)} Nodes
-            </p>
-          )}
-          {pData.revenue !== undefined && (
-            <p className="text-xs font-bold text-white">
-              {format(pData.revenue as number, currency)}
-            </p>
-          )}
-          {pData.value !== undefined && (
-            <p className="text-xs font-bold text-white">
-              {format(pData.value as number, currency)}
-            </p>
-          )}
-        </div>
-      );
+  const pieData = useMemo(() => {
+    let v500k = 0;
+    let v100k = 0;
+    let v25k = 0;
+    let v10k = 0;
+    let v1k = 0;
+    let vUnder = 0;
+    for (const d of data) {
+      const r = d.activeRevenue;
+      if (r >= 500000) v500k += r;
+      else if (r >= 100000) v100k += r;
+      else if (r >= 25000) v25k += r;
+      else if (r >= 10000) v10k += r;
+      else if (r >= 1000) v1k += r;
+      else vUnder += r;
     }
-    return null;
-  };
+    return [
+      { name: "$500k+", value: v500k, color: "#ef4444" },
+      { name: "$100k-$500k", value: v100k, color: "#fb7185" },
+      { name: "$25k-$100k", value: v25k, color: "#facc15" },
+      { name: "$10k-$25k", value: v10k, color: "#84cc16" },
+      { name: "$1k-$10k", value: v1k, color: "#f0abfc" },
+      { name: "<$1k", value: vUnder, color: "#a1a1aa" },
+    ].filter((d) => d.value > 0);
+  }, [data]);
 
-  const timelineData = Array.from({ length: 30 }).map((_, i) => {
-    const month = new Date();
-    month.setMonth(month.getMonth() - (29 - i));
-    const base = totalRev * 0.3;
-    return {
-      date: month.toLocaleString("default", {
-        month: "short",
-        year: "2-digit",
+  const priceHistogram = useMemo(() => {
+    let countFree = 0;
+    let countUnder50 = 0;
+    let count50to99 = 0;
+    let count100to499 = 0;
+    let count500plus = 0;
+    for (const d of data) {
+      if (d.ticketSize === 0) countFree++;
+      else if (d.ticketSize < 50) countUnder50++;
+      else if (d.ticketSize < 100) count50to99++;
+      else if (d.ticketSize < 500) count100to499++;
+      else count500plus++;
+    }
+    return [
+      { name: "Free", count: countFree },
+      { name: "<$50", count: countUnder50 },
+      { name: "$50-$99", count: count50to99 },
+      { name: "$100-$499", count: count100to499 },
+      { name: "$500+", count: count500plus },
+    ];
+  }, [data]);
+
+  const timelineData = useMemo(
+    () =>
+      Array.from({ length: 30 }).map((_, i) => {
+        const month = new Date();
+        month.setMonth(month.getMonth() - (29 - i));
+        const base = totalRev * 0.3;
+        return {
+          date: month.toLocaleString("default", {
+            month: "short",
+            year: "2-digit",
+          }),
+          revenue: Math.floor(
+            base + i * (totalRev * 0.02) + Math.sin(i) * (totalRev * 0.06),
+          ),
+        };
       }),
-      revenue: Math.floor(
-        base + i * (totalRev * 0.02) + Math.sin(i) * (totalRev * 0.06),
-      ),
-    };
-  });
+    [totalRev],
+  );
 
   return (
     <div className="space-y-6">
@@ -5599,7 +5932,9 @@ const ObservatoryView = memo(function ObservatoryView({
                 tickFormatter={(v) => `$${compactNumber(v as number)}`}
                 width={60}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip
+                content={<ChartTooltip format={format} currency={currency} />}
+              />
               <Area
                 type="monotone"
                 dataKey="revenue"
@@ -5654,7 +5989,7 @@ const ObservatoryView = memo(function ObservatoryView({
                   width={50}
                 />
                 <Tooltip
-                  content={<CustomTooltip />}
+                  content={<ChartTooltip format={format} currency={currency} />}
                   cursor={{ strokeDasharray: "3 3", stroke: "#3f3f46" }}
                 />
                 <Scatter data={scatterData} fill="#3b82f6" fillOpacity={0.6} />
@@ -5696,7 +6031,7 @@ const ObservatoryView = memo(function ObservatoryView({
                   width={50}
                 />
                 <Tooltip
-                  content={<CustomTooltip />}
+                  content={<ChartTooltip format={format} currency={currency} />}
                   cursor={{ strokeDasharray: "3 3", stroke: "#3f3f46" }}
                 />
                 <Scatter data={scatterData} fill="#facc15" fillOpacity={0.6} />
@@ -5737,7 +6072,7 @@ const ObservatoryView = memo(function ObservatoryView({
                   width={50}
                 />
                 <Tooltip
-                  content={<CustomTooltip />}
+                  content={<ChartTooltip format={format} currency={currency} />}
                   cursor={{ strokeDasharray: "3 3", stroke: "#3f3f46" }}
                 />
                 <Scatter data={scatterData} fill="#ec4899" fillOpacity={0.6} />
@@ -5783,7 +6118,7 @@ const ObservatoryView = memo(function ObservatoryView({
                 />
                 <Tooltip
                   cursor={{ fill: "#18181b" }}
-                  content={<CustomTooltip />}
+                  content={<ChartTooltip format={format} currency={currency} />}
                 />
                 <Bar dataKey="activeRevenue" radius={[0, 4, 4, 0]} barSize={16}>
                   {topEarners.map((entry) => {
@@ -5830,7 +6165,9 @@ const ObservatoryView = memo(function ObservatoryView({
                     <Cell key={`pie-${entry.name}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip
+                  content={<ChartTooltip format={format} currency={currency} />}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -5885,7 +6222,7 @@ const ObservatoryView = memo(function ObservatoryView({
                 />
                 <Tooltip
                   cursor={{ fill: "#18181b" }}
-                  content={<CustomTooltip />}
+                  content={<ChartTooltip format={format} currency={currency} />}
                 />
                 <Bar
                   dataKey="count"
@@ -5930,7 +6267,7 @@ const AICopilot = memo(function AICopilot({
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!input.trim()) return;
     const userMsg = input.trim();
     setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
@@ -5970,7 +6307,8 @@ const AICopilot = memo(function AICopilot({
       setMessages((prev) => [...prev, { role: "ai", text: aiResponse }]);
       setIsTyping(false);
     }, 600);
-  };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: messages not needed (functional update)
+  }, [input, data, format, currency, isARR]);
 
   return (
     <div className="h-full flex flex-col">
@@ -6080,7 +6418,7 @@ const EmptyState = memo(function EmptyState({
         <button
           type="button"
           onClick={onReset}
-          className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-95"
+          className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg transition-all duration-200 ease-out active:scale-95"
         >
           Clear Filters
         </button>
