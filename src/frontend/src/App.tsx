@@ -17,6 +17,7 @@ import {
   Filter,
   FilterX,
   Globe,
+  Grid3x3,
   Heart,
   HeartHandshake,
   IndianRupee,
@@ -3110,7 +3111,6 @@ export default function App() {
   const [isARR, setIsARR] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [filterCategory, setFilterCategory] = useState("All");
   const [mrrFilter, setMrrFilter] = useState("all");
   const [langFilter, setLangFilter] = useState("All");
   const [ticketFilter, setTicketFilter] = useState("All");
@@ -3136,16 +3136,7 @@ export default function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-
-  const uniqueTags = useMemo(() => {
-    const tags = new Set<string>();
-    for (const c of communities) {
-      for (const t of c.tags) {
-        tags.add(t);
-      }
-    }
-    return Array.from(tags).sort();
-  }, [communities]);
+  const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
 
   const uniqueLangs = useMemo(() => {
     const langs = new Set<string>();
@@ -3164,9 +3155,6 @@ export default function App() {
         (c) =>
           c.name.toLowerCase().includes(search.toLowerCase()) ||
           c.creatorName.toLowerCase().includes(search.toLowerCase()),
-      )
-      .filter(
-        (c) => filterCategory === "All" || c.tags.includes(filterCategory),
       )
       .filter((c) => langFilter === "All" || c.language.lang === langFilter);
 
@@ -3238,7 +3226,6 @@ export default function App() {
   }, [
     communities,
     search,
-    filterCategory,
     langFilter,
     ticketFilter,
     mrrFilter,
@@ -3388,7 +3375,6 @@ export default function App() {
         | "megaall",
     ) => {
       setActiveCategory(cat);
-      setFilterCategory("All");
       setMrrFilter("all");
       setLangFilter("All");
       setTicketFilter("All");
@@ -3415,7 +3401,6 @@ export default function App() {
 
   const clearFilters = useCallback(() => {
     setSearch("");
-    setFilterCategory("All");
     setLangFilter("All");
     setMrrFilter("all");
     setTicketFilter("All");
@@ -3520,7 +3505,7 @@ export default function App() {
 
             {/* Category Switcher - icon-only by default, label appears when active */}
             <div
-              className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800/60 rounded-full px-2 py-[3px] overflow-x-auto md:overflow-hidden shrink-0 scrollbar-hide"
+              className="hidden md:flex items-center gap-2 bg-zinc-900/60 border border-zinc-800/60 rounded-full px-2 py-[3px] overflow-x-auto md:overflow-hidden shrink-0 scrollbar-hide"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               {(
@@ -4220,23 +4205,6 @@ export default function App() {
               }`}
             >
               <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-between px-4">
-                <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1 lg:pb-0">
-                  {["All", ...uniqueTags].map((tag) => (
-                    <button
-                      type="button"
-                      key={tag}
-                      onClick={() => setFilterCategory(tag)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 border ${
-                        filterCategory === tag
-                          ? "bg-zinc-200 text-zinc-900 border-zinc-200"
-                          : "bg-transparent border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900"
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-
                 <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 lg:pb-0 shrink-0">
                   <button
                     type="button"
@@ -4571,7 +4539,7 @@ export default function App() {
               type="button"
               data-ocid={`mobile.view.${id}.tab`}
               onClick={() => setView(id)}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl min-w-[56px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
             >
               <Icon className="w-5 h-5" />
               <span className="text-[10px] font-semibold">{label}</span>
@@ -4581,13 +4549,227 @@ export default function App() {
             type="button"
             data-ocid="mobile.filter.open_modal_button"
             onClick={() => setMobileFilterOpen(true)}
-            className="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl min-w-[56px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 text-zinc-500 hover:text-zinc-300"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 text-zinc-500 hover:text-zinc-300"
           >
             <Filter className="w-5 h-5" />
             <span className="text-[10px] font-semibold">Filters</span>
           </button>
+          {/* 5th button: Category picker */}
+          {(() => {
+            const catIconMap: Record<
+              string,
+              { Icon: React.FC<{ className?: string }>; color: string }
+            > = {
+              discovery: { Icon: Telescope, color: "text-violet-400" },
+              music: { Icon: Music2, color: "text-pink-400" },
+              selfimprovement: { Icon: Brain, color: "text-cyan-400" },
+              money: { Icon: Banknote, color: "text-emerald-400" },
+              spirituality: { Icon: Sun, color: "text-amber-400" },
+              tech: { Icon: Cpu, color: "text-blue-400" },
+              health: { Icon: Activity, color: "text-red-400" },
+              relationships: { Icon: HeartHandshake, color: "text-rose-400" },
+              sports: { Icon: Dumbbell, color: "text-orange-400" },
+              hobbies: { Icon: Wand2, color: "text-purple-400" },
+              top500: { Icon: Trophy, color: "text-amber-500" },
+              megaall: { Icon: Layers, color: "text-indigo-400" },
+            };
+            const active = catIconMap[activeCategory] ?? {
+              Icon: Grid3x3,
+              color: "text-zinc-400",
+            };
+            const ActiveIcon = active.Icon;
+            return (
+              <button
+                type="button"
+                data-ocid="mobile.category.open_modal_button"
+                onClick={() => setMobileCategoryOpen(true)}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 ${mobileCategoryOpen ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
+              >
+                <ActiveIcon className={`w-5 h-5 ${active.color}`} />
+                <span className="text-[10px] font-semibold">Category</span>
+              </button>
+            );
+          })()}
         </nav>
       )}
+
+      {/* Mobile category picker overlay */}
+      <div
+        className={`fixed inset-0 z-50 md:hidden transition-all duration-250 ease-out ${mobileCategoryOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        data-ocid="mobile.category.modal"
+      >
+        {/* Backdrop */}
+        <button
+          type="button"
+          aria-label="Close category picker"
+          className="absolute inset-0 bg-black/80 w-full h-full"
+          onClick={() => setMobileCategoryOpen(false)}
+        />
+        {/* Slide-up sheet */}
+        <div
+          className={`absolute bottom-0 left-0 right-0 bg-[#09090b] rounded-t-2xl border-t border-zinc-800/80 motion-safe:transition-transform motion-safe:duration-250 ease-out ${mobileCategoryOpen ? "translate-y-0" : "translate-y-full"}`}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-4 pb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-5 rounded-full bg-gradient-to-b from-violet-500 to-indigo-500" />
+              <span className="text-sm font-bold text-zinc-100 tracking-tight">
+                Select Category
+              </span>
+            </div>
+            <button
+              type="button"
+              data-ocid="mobile.category.close_button"
+              onClick={() => setMobileCategoryOpen(false)}
+              className="p-2 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 active:scale-95 transition-all duration-100 min-w-[36px] min-h-[36px] flex items-center justify-center"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {/* Divider */}
+          <div className="mx-5 h-px bg-zinc-800/60 mb-1" />
+          {/* 2-column grid */}
+          <div className="grid grid-cols-2 gap-2 p-4 pb-6">
+            {[
+              {
+                id: "discovery",
+                Icon: Telescope,
+                label: "Discovery",
+                color: "text-violet-400",
+                activeBg:
+                  "bg-gradient-to-r from-violet-600/20 to-purple-600/20 border-violet-500/30",
+              },
+              {
+                id: "music",
+                Icon: Music2,
+                label: "Music",
+                color: "text-pink-400",
+                activeBg:
+                  "bg-gradient-to-r from-pink-600/20 to-rose-600/20 border-pink-500/30",
+              },
+              {
+                id: "selfimprovement",
+                Icon: Brain,
+                label: "Self Improvement",
+                color: "text-cyan-400",
+                activeBg:
+                  "bg-gradient-to-r from-cyan-600/20 to-teal-600/20 border-cyan-500/30",
+              },
+              {
+                id: "money",
+                Icon: Banknote,
+                label: "Money",
+                color: "text-emerald-400",
+                activeBg:
+                  "bg-gradient-to-r from-emerald-600/20 to-green-600/20 border-emerald-500/30",
+              },
+              {
+                id: "spirituality",
+                Icon: Sun,
+                label: "Spirituality",
+                color: "text-amber-400",
+                activeBg:
+                  "bg-gradient-to-r from-amber-600/20 to-yellow-600/20 border-amber-500/30",
+              },
+              {
+                id: "tech",
+                Icon: Cpu,
+                label: "Tech",
+                color: "text-blue-400",
+                activeBg:
+                  "bg-gradient-to-r from-blue-600/20 to-indigo-600/20 border-blue-500/30",
+              },
+              {
+                id: "health",
+                Icon: Activity,
+                label: "Health",
+                color: "text-red-400",
+                activeBg:
+                  "bg-gradient-to-r from-red-600/20 to-orange-600/20 border-red-500/30",
+              },
+              {
+                id: "relationships",
+                Icon: HeartHandshake,
+                label: "Relationships",
+                color: "text-rose-400",
+                activeBg:
+                  "bg-gradient-to-r from-rose-600/20 to-pink-600/20 border-rose-500/30",
+              },
+              {
+                id: "sports",
+                Icon: Dumbbell,
+                label: "Sports",
+                color: "text-orange-400",
+                activeBg:
+                  "bg-gradient-to-r from-orange-600/20 to-amber-600/20 border-orange-500/30",
+              },
+              {
+                id: "hobbies",
+                Icon: Wand2,
+                label: "Hobbies",
+                color: "text-purple-400",
+                activeBg:
+                  "bg-gradient-to-r from-purple-600/20 to-violet-600/20 border-purple-500/30",
+              },
+              {
+                id: "top500",
+                Icon: Trophy,
+                label: "Top 500",
+                color: "text-amber-500",
+                activeBg:
+                  "bg-gradient-to-r from-amber-600/20 to-yellow-600/20 border-amber-500/30",
+              },
+              {
+                id: "megaall",
+                Icon: Layers,
+                label: "Mega All",
+                color: "text-indigo-400",
+                activeBg:
+                  "bg-gradient-to-r from-indigo-600/20 to-violet-600/20 border-indigo-500/30",
+              },
+            ].map(
+              ({
+                id,
+                Icon,
+                label,
+                color,
+                activeBg,
+              }: {
+                id: string;
+                Icon: React.FC<{ className?: string }>;
+                label: string;
+                color: string;
+                activeBg: string;
+              }) => {
+                const isActive = activeCategory === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    data-ocid={`mobile.category.${id}.button`}
+                    onClick={() => {
+                      handleCategorySwitch(
+                        id as Parameters<typeof handleCategorySwitch>[0],
+                      );
+                      setMobileCategoryOpen(false);
+                    }}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl min-h-[56px] border active:scale-95 transition-all duration-100 ${
+                      isActive
+                        ? `${activeBg} text-white`
+                        : "bg-zinc-900/80 border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80"
+                    }`}
+                  >
+                    <Icon className={`w-6 h-6 ${color} shrink-0`} />
+                    <span className="text-sm font-semibold leading-tight">
+                      {label}
+                    </span>
+                  </button>
+                );
+              },
+            )}
+          </div>
+        </div>
+      </div>
 
       {isZenMode && (
         <button
