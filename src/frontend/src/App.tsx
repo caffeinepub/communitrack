@@ -93,6 +93,22 @@ const AICopilot = lazy(() =>
   import("./components/AICopilot").then((m) => ({ default: m.AICopilot })),
 );
 
+// Pre-defined stable IDs for skeleton loading cards (avoids array-index key lint rule)
+const SKELETON_IDS = [
+  "sk-a1",
+  "sk-b2",
+  "sk-c3",
+  "sk-d4",
+  "sk-e5",
+  "sk-f6",
+  "sk-g7",
+  "sk-h8",
+  "sk-i9",
+  "sk-j10",
+  "sk-k11",
+  "sk-l12",
+];
+
 export default function App() {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [activeCategory, setActiveCategory] = useState<CategoryId>("megaall");
@@ -518,7 +534,7 @@ export default function App() {
           isScrollFocused && !isZenMode ? { marginBottom: "-56px" } : undefined
         }
       >
-        <header className="h-14 flex items-center gap-2 px-3 md:px-4 shrink-0 bg-[#09090b]/95 backdrop-blur-sm border-b border-zinc-800/60 z-20">
+        <header className="h-14 flex items-center gap-2 px-3 md:px-4 shrink-0 bg-[#09090b]/95 backdrop-blur-md border-b border-white/[0.08] z-20">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               type="button"
@@ -551,15 +567,15 @@ export default function App() {
                       type="button"
                       data-ocid={`nav.${id}.tab`}
                       onClick={() => handleCategorySwitch(id)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] whitespace-nowrap active:scale-95 shrink-0 ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-[200ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] whitespace-nowrap active:scale-95 shrink-0 ${
                         isActive
-                          ? `${activeClass} shadow-md`
-                          : `${iconColor} hover:bg-zinc-800/80 hover:text-zinc-200`
+                          ? `${activeClass} shadow-lg ring-1 ring-white/10 animate-popIn`
+                          : `${iconColor} hover:bg-zinc-800/80 hover:text-zinc-200 hover:scale-105`
                       }`}
                     >
                       <Icon className="w-[18px] h-[18px] shrink-0" />
                       {isActive && (
-                        <span className="overflow-hidden transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] max-w-[80px] opacity-100">
+                        <span className="overflow-hidden max-w-[80px] opacity-100 animate-slideInUp">
                           {label}
                         </span>
                       )}
@@ -786,7 +802,7 @@ export default function App() {
             <div className="overflow-y-auto custom-scrollbar flex-1">
               {/* Sort */}
               <div className="p-3 space-y-1 mt-2 pt-2">
-                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em] px-3 pb-2">
                   Sort By
                 </div>
                 {[
@@ -798,7 +814,7 @@ export default function App() {
                     type="button"
                     key={s.id}
                     onClick={() => setSortBy(s.id)}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                   >
                     <span className="text-[12px] font-bold">{s.label}</span>
                     {sortBy === s.id && (
@@ -823,7 +839,7 @@ export default function App() {
 
               {/* Pricing Type */}
               <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4">
-                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em] px-3 pb-2">
                   Pricing Type
                 </div>
                 <button
@@ -838,7 +854,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
                   <span className="text-base">🏷️</span>
                   <span className="text-[12px] font-bold">
@@ -862,7 +878,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
                   <span className="text-base">📅</span>
                   <span className="text-[12px] font-bold">
@@ -879,7 +895,7 @@ export default function App() {
               {/* Pipeline Tiers */}
               <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em]">
                     Pipeline Tiers
                   </div>
                   {mrrFilter !== "all" && (
@@ -930,7 +946,7 @@ export default function App() {
               {/* Ticket Size - mobile */}
               <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em]">
                     Ticket Size
                   </div>
                   {ticketFilter !== "All" && (
@@ -1038,7 +1054,7 @@ export default function App() {
               {/* Region - mobile */}
               <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4 pb-6">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em]">
                     Region
                   </div>
                   {langFilter !== "All" && (
@@ -1089,7 +1105,7 @@ export default function App() {
             <div className="w-52 flex flex-col min-h-full">
               {/* View switcher */}
               <div className="p-3 space-y-1 border-b border-zinc-800/50">
-                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em] px-3 pb-2">
                   Workspace
                 </div>
                 {(
@@ -1114,7 +1130,7 @@ export default function App() {
 
               {/* Pricing type */}
               <div className="p-3 space-y-1 border-b border-zinc-800/50">
-                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em] px-3 pb-2">
                   Pricing Type
                 </div>
                 <button
@@ -1129,7 +1145,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
                   <span className="text-base">🏷️</span>
                   <span className="text-[12px] font-bold">
@@ -1153,7 +1169,7 @@ export default function App() {
                       scrollFocusCooldownRef.current = false;
                     }, 600);
                   }}
-                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
                   <span className="text-base">📅</span>
                   <span className="text-[12px] font-bold">
@@ -1169,7 +1185,7 @@ export default function App() {
 
               {/* Sort */}
               <div className="p-3 space-y-1 border-b border-zinc-800/50">
-                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em] px-3 pb-2">
                   Sort By
                 </div>
                 {[
@@ -1207,7 +1223,7 @@ export default function App() {
               {/* Pipeline Tiers */}
               <div className="p-3 space-y-1 border-b border-zinc-800/50">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em]">
                     Pipeline Tiers
                   </div>
                   {mrrFilter !== "all" && (
@@ -1258,7 +1274,7 @@ export default function App() {
               {/* Ticket Size */}
               <div className="p-3 space-y-1 border-b border-zinc-800/50 mb-4">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em]">
                     Ticket Size
                   </div>
                   {ticketFilter !== "All" && (
@@ -1370,7 +1386,7 @@ export default function App() {
               {/* Region */}
               <div className="p-3 space-y-1 mt-2 border-t border-zinc-800/50 pt-4">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
+                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.15em]">
                     Region
                   </div>
                   {langFilter !== "All" && (
@@ -1431,7 +1447,12 @@ export default function App() {
         )}
 
         <main
-          className={`flex-1 flex flex-col min-w-0 bg-[#0a0a0a] md:pb-0 transition-[padding] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "pb-0" : "main-mobile-pb"}`}
+          className="flex-1 flex flex-col min-w-0 bg-[#09090b] md:!pb-0"
+          style={{
+            paddingBottom: isScrollFocused
+              ? 0
+              : "calc(4rem + env(safe-area-inset-bottom, 0px))",
+          }}
         >
           {/* Filter bar */}
           {!isZenMode && (
@@ -1561,10 +1582,24 @@ export default function App() {
 
           {/* Main content area */}
           {isLoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-[#0a0a0a]">
-              <div className="w-8 h-8 border-2 border-zinc-700 border-t-violet-500 rounded-full animate-spin" />
-              <div className="text-zinc-500 text-sm font-medium">
-                Loading dataset...
+            <div className="flex-1 overflow-hidden p-4 bg-[#09090b]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {SKELETON_IDS.map((skId, i) => (
+                  <div
+                    key={skId}
+                    className="rounded-xl border border-white/[0.04] bg-[#0e0e10] min-h-[110px] p-4 flex flex-col justify-between skeleton-shimmer"
+                    style={{ animationDelay: `${i * 60}ms` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-md bg-zinc-800/60" />
+                      <div className="h-3 rounded bg-zinc-800/60 flex-1" />
+                    </div>
+                    <div className="flex items-end justify-between mt-4">
+                      <div className="h-3 rounded bg-zinc-800/60 w-24" />
+                      <div className="h-6 rounded bg-zinc-800/60 w-16" />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : filteredData.length === 0 ? (
@@ -1791,7 +1826,7 @@ export default function App() {
       {/* Mobile bottom nav */}
       {!isZenMode && (
         <nav
-          className={`fixed bottom-0 left-0 right-0 md:hidden flex items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 z-30 nav-bottom-safe transform-gpu will-change-transform transition-[transform,opacity] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}
+          className={`fixed bottom-0 left-0 right-0 md:hidden flex items-center justify-around bg-[#09090b] border-t border-white/[0.08] px-2 py-1 z-30 nav-bottom-safe transform-gpu will-change-transform transition-[transform,opacity] duration-[300ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${isScrollFocused ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}
         >
           {[
             { id: "gallery", Icon: LayoutGrid, label: "Cards" },
@@ -1802,9 +1837,12 @@ export default function App() {
               type="button"
               data-ocid={`mobile.view.${id}.tab`}
               onClick={() => setView(id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[48px] min-h-[44px] motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] active:scale-95 ${view === id ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}
             >
-              <Icon className="w-5 h-5" />
+              {view === id && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-[2px] rounded-full bg-indigo-400 animate-slideInUp" />
+              )}
+              <Icon className="w-5 h-5 mt-0.5" />
               <span className="text-[10px] font-semibold">{label}</span>
             </button>
           ))}

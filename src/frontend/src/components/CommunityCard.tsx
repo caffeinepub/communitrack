@@ -16,6 +16,7 @@ type Props = {
 
 export const CommunityCard = memo(function CommunityCard({
   community,
+  index,
   currency,
   format,
   isARR,
@@ -30,11 +31,15 @@ export const CommunityCard = memo(function CommunityCard({
   const isFixed = community.pricingType === "fixed";
   const isYearly = community.pricingType === "yearly";
 
+  // Stagger entry animation — cap at index 8 to avoid sluggishness on long lists
+  const staggerDelay = `${Math.min(index, 8) * 28}ms`;
+
   return (
     <button
       type="button"
       onClick={() => community.url && window.open(community.url, "_blank")}
-      className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
+      className={`group relative flex flex-col justify-between p-4 bg-[#0e0e10] border border-white/[0.06] motion-safe:animate-slideInUp motion-safe:transition-[transform,box-shadow,background-color] duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl w-full text-left motion-safe:hover:scale-[1.014] motion-safe:hover:-translate-y-[3px] hover:bg-[#131316] active:scale-[0.98] will-change-transform [contain:layout_style_paint] card-hover-glow ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
+      style={{ animationDelay: staggerDelay }}
     >
       {catMeta && (
         <div
@@ -51,13 +56,13 @@ export const CommunityCard = memo(function CommunityCard({
       )}
       <div className="flex items-center gap-3 min-w-0 pr-2">
         <div
-          className={`w-8 h-8 shrink-0 rounded-md flex items-center justify-center ${ticketTier.bg} ${ticketTier.text} text-[10px] font-black shadow-sm`}
+          className={`w-8 h-8 shrink-0 rounded-md flex items-center justify-center ${ticketTier.bg} ${ticketTier.text} text-[10px] font-black shadow-sm ring-1 ring-white/[0.06]`}
           title={ticketTier.label}
         >
           {ticketTier.abbr}
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-bold text-zinc-100 truncate tracking-tight group-hover:text-white transition-colors">
+          <h4 className="text-[13px] font-bold text-zinc-200 truncate tracking-tight group-hover:text-white transition-colors duration-[150ms]">
             {community.name}
           </h4>
         </div>
@@ -74,16 +79,16 @@ export const CommunityCard = memo(function CommunityCard({
       </div>
 
       <div className="mt-4 flex items-end justify-between pt-1">
-        <div className="flex items-center gap-2 text-[12.5px] text-zinc-100 font-bold pb-0.5 tracking-tight">
+        <div className="flex items-center gap-2 text-[12.5px] text-zinc-300 font-bold pb-0.5 tracking-tight">
           <span className="flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-zinc-400" />{" "}
+            <Users className="w-3.5 h-3.5 text-zinc-500" />{" "}
             {compactNumber(community.members)}
           </span>
-          <span className="text-zinc-600">•</span>
+          <span className="text-zinc-700">•</span>
           {isFixed ? (
             <span className="text-amber-400">
               ${compactNumber(community.fixedPrice)}
-              <span className="text-zinc-400 text-[10px]"> one-time</span>
+              <span className="text-zinc-500 text-[10px]"> one-time</span>
             </span>
           ) : isYearly ? (
             <span className="flex flex-col items-start">
@@ -97,7 +102,7 @@ export const CommunityCard = memo(function CommunityCard({
           ) : (
             <span>
               ${compactNumber(community.ticketSize)}
-              <span className="text-zinc-400 text-[10px]">
+              <span className="text-zinc-500 text-[10px]">
                 /{isARR ? "y" : "m"}
               </span>
             </span>
@@ -106,7 +111,7 @@ export const CommunityCard = memo(function CommunityCard({
         {isYearly ? (
           <div className="flex flex-col items-end">
             <span
-              className={`text-[20px] font-black tracking-tighter leading-none tabular-nums ${tier.color} ${tier.glow}`}
+              className={`text-[21px] font-black tracking-tighter leading-none tabular-nums ${tier.color} ${tier.glow}`}
             >
               {isARR
                 ? format(community.yearlyPrice * community.members, currency)
@@ -125,7 +130,7 @@ export const CommunityCard = memo(function CommunityCard({
           </div>
         ) : (
           <div
-            className={`text-[20px] font-black tracking-tighter leading-none tabular-nums ${isFixed ? "text-amber-500" : tier.color} ${tier.glow}`}
+            className={`text-[21px] font-black tracking-tighter leading-none tabular-nums ${isFixed ? "text-amber-500" : tier.color} ${tier.glow}`}
           >
             {isFixed
               ? format(community.fixedPrice * community.members, currency)

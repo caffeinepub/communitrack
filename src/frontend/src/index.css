@@ -69,7 +69,7 @@
     --sidebar-primary: 0.488 0.243 264.376;
     --sidebar-primary-foreground: 0.985 0 0;
     --sidebar-accent: 0.269 0 0;
-    --sidebar-accent-foreground: 0.985 0 0;
+    --sidebar-accent-foreground: 0.205 0 0;
     --sidebar-border: 1 0 0 / 10%;
     --sidebar-ring: 0.439 0 0;
   }
@@ -77,15 +77,28 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     background-color: #09090b;
     margin: 0;
     padding: 0;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
   html {
     background-color: #09090b;
   }
+}
+
+/* Numbers always use tabular (fixed-width) numerals */
+.tabular-nums,
+[class*="font-black"],
+[class*="font-bold"] {
+  font-variant-numeric: tabular-nums;
 }
 
 /* CommuniTrack custom scrollbar */
@@ -119,7 +132,8 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0;
 }
 
-/* Micro-animations */
+/* ─── Keyframe Animations ─────────────────────────────────────────────────── */
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -130,6 +144,7 @@ input[type="number"]::-webkit-outer-spin-button {
     transform: translateY(0);
   }
 }
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -138,6 +153,7 @@ input[type="number"]::-webkit-outer-spin-button {
     opacity: 1;
   }
 }
+
 @keyframes scaleIn {
   from {
     opacity: 0;
@@ -148,6 +164,54 @@ input[type="number"]::-webkit-outer-spin-button {
     transform: scale(1);
   }
 }
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ─── Animation Utility Classes ───────────────────────────────────────────── */
+
 .animate-fadeInUp {
   animation: fadeInUp 0.2s ease-out both;
 }
@@ -157,70 +221,107 @@ input[type="number"]::-webkit-outer-spin-button {
 .animate-scaleIn {
   animation: scaleIn 0.15s ease-out both;
 }
+.animate-slideInUp {
+  animation: slideInUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.animate-popIn {
+  animation: popIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
 
-/* Mobile safe area support - edge to edge nav */
+/* Skeleton shimmer */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #1a1a1e 0%,
+    #27272a 40%,
+    #2d2d31 50%,
+    #27272a 60%,
+    #1a1a1e 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* ─── Safe Area / Edge-to-Edge ─────────────────────────────────────────────── */
+
+/* Extend nav background flush to the bottom of the screen (covers safe area) */
 .nav-bottom-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-/* Extend nav background below safe area so no gap is visible */
 .nav-bottom-safe::after {
   content: "";
   position: absolute;
   bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  height: env(safe-area-inset-bottom, 0px);
+  height: env(safe-area-inset-bottom, 20px);
   background-color: #09090b;
   pointer-events: none;
 }
 
-/* Respect reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .animate-fadeInUp,
-  .animate-fadeIn,
-  .animate-scaleIn {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
+/* Absolute safety net: fill every last pixel below the nav / safe area */
+body::after {
+  content: "";
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-bottom, 0px);
+  background-color: #09090b;
+  z-index: 9999;
+  pointer-events: none;
 }
 
-/* Focus mode - smooth scroll-driven UI chrome hiding */
+/* ─── Easing Utilities ─────────────────────────────────────────────────────── */
+
 .ease-spring {
   transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
 .ease-ios {
   transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* Extend reduced motion accessibility */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+/* ─── Hardware Acceleration ───────────────────────────────────────────────── */
 
-/* Hardware acceleration hints */
 .transform-gpu {
   transform: translateZ(0);
   will-change: transform;
 }
 
-/* Snappy scroll momentum on iOS */
+/* Smooth momentum scrolling on iOS */
 .custom-scrollbar {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Main content bottom padding accounts for nav + safe area */
-.main-mobile-pb {
-  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+/* ─── Card Hover Glow ─────────────────────────────────────────────────────── */
+
+.card-hover-glow {
+  transition: box-shadow 200ms ease, transform 180ms
+    cubic-bezier(0.25, 0.1, 0.25, 1);
 }
-@media (min-width: 768px) {
-  .main-mobile-pb {
-    padding-bottom: 0;
+.card-hover-glow:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.06)
+    inset;
+}
+
+/* ─── Reduced Motion ───────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeInUp,
+  .animate-fadeIn,
+  .animate-scaleIn,
+  .animate-slideInUp,
+  .animate-popIn,
+  .skeleton-shimmer {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
