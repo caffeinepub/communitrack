@@ -1,5 +1,5 @@
 import { Users } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { CATEGORY_META } from "../constants/categories";
 import { getTicketTierInfo, getTierInfo } from "../data/tiers";
 import type { EnrichedCommunity } from "../types";
@@ -36,11 +36,17 @@ export const CommunityCard = memo(function CommunityCard({
   // Stagger entry animation — cap at index 8 to avoid sluggishness on long lists
   const staggerDelay = `${Math.min(index, 8) * 28}ms`;
 
+  // Mount state to prevent re-triggering the slide-in animation on re-renders
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   return (
     <button
       type="button"
       onClick={() => community.url && window.open(community.url, "_blank")}
-      className={`group relative flex flex-col justify-between p-4 bg-[#0e0e10] border border-white/[0.06] motion-safe:animate-slideInUp motion-safe:transition-[transform,box-shadow,background-color] duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl w-full text-left motion-safe:hover:scale-[1.014] motion-safe:hover:-translate-y-[3px] hover:bg-[#131316] active:scale-[0.98] will-change-transform [contain:layout_style_paint] card-hover-glow ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
+      className={`group relative flex flex-col justify-between p-4 bg-[#0e0e10] border border-white/[0.06] ${!hasMounted ? "motion-safe:animate-slideInUp" : ""} motion-safe:transition-[transform,box-shadow,background-color] duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl w-full text-left motion-safe:hover:scale-[1.014] motion-safe:hover:-translate-y-[3px] hover:bg-[#131316] active:scale-[0.98] will-change-transform [contain:layout_style_paint] card-hover-glow ${tier.border} ${tier.bg} min-h-[110px] ${community.url ? "cursor-pointer" : ""}`}
       style={{ animationDelay: staggerDelay }}
     >
       {catMeta && (

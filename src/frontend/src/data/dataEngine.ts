@@ -154,8 +154,12 @@ export function parseCSVData(csvText: string): Community[] {
         const pMatch = cleanPrice.match(/\$([\d.]+)/);
         if (pMatch) {
           const rawVal = Number.parseFloat(pMatch[1]);
-          const hasMonth = /\/month|\/mo\b/i.test(priceSource);
-          const hasYear = /\/year|\/yr\b/i.test(priceSource);
+          const hasMonth = /\/month|\/mo\b|per\s+month|monthly/i.test(
+            priceSource,
+          );
+          const hasYear = /\/year|\/yr\b|per\s+year|annually|annual\b/i.test(
+            priceSource,
+          );
 
           if (hasYear) {
             pricingType = "yearly";
@@ -212,11 +216,12 @@ export function parseCSVData(csvText: string): Community[] {
       const mrrVal =
         pricingType === "fixed" ? 0 : (members || 0) * (ticketSize || 0);
 
+      const nameSlug = (url || name || "")
+        .replace(/[^a-z0-9]/gi, "")
+        .toLowerCase()
+        .slice(0, 24);
       return {
-        id: `node-${(url || name || "")
-          .replace(/[^a-z0-9]/gi, "")
-          .toLowerCase()
-          .slice(0, 20)}-${index}`,
+        id: `n-${nameSlug}-${index}`,
         name,
         nameLower: name.toLowerCase(),
         creatorName: "Network Node",
@@ -381,4 +386,6 @@ export async function loadCategoryWithCache(
 }
 
 // Pre-warm megaall in background at module init so second click is instant
-loadCategoryWithCache("megaall").catch(() => {});
+if (typeof window !== "undefined") {
+  loadCategoryWithCache("megaall").catch(() => {});
+}

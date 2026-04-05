@@ -163,17 +163,20 @@ export default function App() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastScrollTopRef = useRef(0);
   const scrollFocusCooldownRef = useRef(false);
+  const prevScrollFocusedRef = useRef(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
 
   const uniqueLangs = useMemo(() => {
-    const langs = new Set<string>();
+    const langMap = new Map<string, { lang: string; flag: string }>();
     for (const c of communities) {
-      if (c.language?.lang) langs.add(JSON.stringify(c.language));
+      if (c.language?.lang && !langMap.has(c.language.lang)) {
+        langMap.set(c.language.lang, c.language);
+      }
     }
-    return Array.from(langs)
-      .map((l) => JSON.parse(l) as { lang: string; flag: string })
-      .sort((a, b) => a.lang.localeCompare(b.lang));
+    return Array.from(langMap.values()).sort((a, b) =>
+      a.lang.localeCompare(b.lang),
+    );
   }, [communities]);
 
   const filteredData = useMemo((): EnrichedCommunity[] => {
@@ -309,10 +312,10 @@ export default function App() {
   const tierCounts = useMemo(() => {
     const counts = { ultra: 0, high: 0, mid: 0, low: 0 };
     for (const d of filteredData) {
-      if (d.mrr >= 100000) counts.ultra++;
-      else if (d.mrr >= 25000) counts.high++;
-      else if (d.mrr >= 10000) counts.mid++;
-      else if (d.mrr >= 1000) counts.low++;
+      if (d.activeRevenue >= 100000) counts.ultra++;
+      else if (d.activeRevenue >= 25000) counts.high++;
+      else if (d.activeRevenue >= 10000) counts.mid++;
+      else if (d.activeRevenue >= 1000) counts.low++;
     }
     return counts;
   }, [filteredData]);
@@ -339,29 +342,17 @@ export default function App() {
     setActiveCategory(cat);
     setIsScrollFocused(false);
     lastScrollTopRef.current = 0;
-    scrollFocusCooldownRef.current = true;
-    setTimeout(() => {
-      scrollFocusCooldownRef.current = false;
-    }, 600);
+    startScrollCooldown();
 
-    // Reset filters atomically
-    Promise.resolve().then(() => {
-      setMrrFilter("all");
-      setLangFilter("All");
-      setTicketFilter("All");
-      setFreeTierFilter("none");
-      setSearch("");
-      setSearchInput("");
-      setShowFixed(false);
-      setShowYearly(false);
-    });
-
-    const isCached = await loadCategoryWithCache(cat)
-      .then(() => true)
-      .catch(() => false);
-    void isCached;
-
-    // Skip loading spinner for cached data
+    // Reset filters synchronously for instant atomic update
+    setMrrFilter("all");
+    setLangFilter("All");
+    setTicketFilter("All");
+    setFreeTierFilter("none");
+    setSearch("");
+    setSearchInput("");
+    setShowFixed(false);
+    setShowYearly(false);
 
     const dataPromise = loadCategoryWithCache(cat);
 
@@ -381,6 +372,14 @@ export default function App() {
     }
   }, []);
 
+  // Reusable helper to start scroll cooldown (prevents jitter after state changes)
+  const startScrollCooldown = useCallback(() => {
+    scrollFocusCooldownRef.current = true;
+    setTimeout(() => {
+      scrollFocusCooldownRef.current = false;
+    }, 600);
+  }, []);
+
   const boundFormat = useCallback(
     (amount: number, curr: string) => formatCurrency(amount, curr, inrRate),
     [inrRate],
@@ -391,15 +390,12 @@ export default function App() {
     setSearchInput("");
     setLangFilter("All");
     setIsScrollFocused(false);
-    scrollFocusCooldownRef.current = true;
-    setTimeout(() => {
-      scrollFocusCooldownRef.current = false;
-    }, 600);
+    startScrollCooldown();
     setMrrFilter("all");
     setTicketFilter("All");
     setIncludeFreeThreshold(null);
     setFreeTierFilter("none");
-  }, []);
+  }, [startScrollCooldown]);
 
   // Load Mega All on initial mount
   useEffect(() => {
@@ -420,6 +416,13 @@ export default function App() {
       setView("gallery");
     }
   }, [view]);
+
+  // Cleanup search debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, []);
 
   const handleSearch = useCallback((val: string) => {
     setSearchInput(val);
@@ -450,10 +453,15 @@ export default function App() {
         rafPendingRef.current = false;
         const delta = scrollTop - lastScrollTopRef.current;
         const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
+        let newFocused = prevScrollFocusedRef.current;
         if (delta > 25 && scrollTop > 100 && !nearBottom) {
-          setIsScrollFocused(true);
+          newFocused = true;
         } else if (delta < -15) {
-          setIsScrollFocused(false);
+          newFocused = false;
+        }
+        if (newFocused !== prevScrollFocusedRef.current) {
+          prevScrollFocusedRef.current = newFocused;
+          setIsScrollFocused(newFocused);
         }
         lastScrollTopRef.current = scrollTop;
       });
@@ -839,11 +847,16 @@ export default function App() {
                   { id: "members", label: "Members" },
                   { id: "arpu", label: "Ticket Price" },
                 ].map((s) => (
-                  <button
-                    type="button"
+                  <div
                     key={s.id}
                     onClick={() => setSortBy(s.id)}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSortBy(s.id);
+                      }
+                    }}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] cursor-pointer select-none ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                   >
                     <span className="text-[12px] font-bold">{s.label}</span>
                     {sortBy === s.id && (
@@ -862,7 +875,7 @@ export default function App() {
                         )}
                       </button>
                     )}
-                  </button>
+                  </div>
                 ))}
               </div>
 
@@ -878,10 +891,7 @@ export default function App() {
                     setShowFixed((v) => !v);
                     setShowYearly(false);
                     setIsScrollFocused(false);
-                    scrollFocusCooldownRef.current = true;
-                    setTimeout(() => {
-                      scrollFocusCooldownRef.current = false;
-                    }, 600);
+                    startScrollCooldown();
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
@@ -902,10 +912,7 @@ export default function App() {
                     setShowYearly((v) => !v);
                     setShowFixed(false);
                     setIsScrollFocused(false);
-                    scrollFocusCooldownRef.current = true;
-                    setTimeout(() => {
-                      scrollFocusCooldownRef.current = false;
-                    }, 600);
+                    startScrollCooldown();
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 min-h-[44px] ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
@@ -1169,10 +1176,7 @@ export default function App() {
                     setShowFixed((v) => !v);
                     setShowYearly(false);
                     setIsScrollFocused(false);
-                    scrollFocusCooldownRef.current = true;
-                    setTimeout(() => {
-                      scrollFocusCooldownRef.current = false;
-                    }, 600);
+                    startScrollCooldown();
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
@@ -1193,10 +1197,7 @@ export default function App() {
                     setShowYearly((v) => !v);
                     setShowFixed(false);
                     setIsScrollFocused(false);
-                    scrollFocusCooldownRef.current = true;
-                    setTimeout(() => {
-                      scrollFocusCooldownRef.current = false;
-                    }, 600);
+                    startScrollCooldown();
                   }}
                   className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 hover:border-l-2 hover:border-l-zinc-700 border-l-2 border-l-transparent"}`}
                 >
@@ -1222,11 +1223,16 @@ export default function App() {
                   { id: "members", label: "Members" },
                   { id: "arpu", label: "Ticket Price" },
                 ].map((s) => (
-                  <button
-                    type="button"
+                  <div
                     key={s.id}
                     onClick={() => setSortBy(s.id)}
-                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSortBy(s.id);
+                      }
+                    }}
+                    className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-[180ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] text-left active:scale-95 cursor-pointer select-none ${sortBy === s.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900"}`}
                   >
                     <span className="text-[12px] font-bold">{s.label}</span>
                     {sortBy === s.id && (
@@ -1245,7 +1251,7 @@ export default function App() {
                         )}
                       </button>
                     )}
-                  </button>
+                  </div>
                 ))}
               </div>
 
@@ -1481,6 +1487,7 @@ export default function App() {
             paddingBottom: isScrollFocused
               ? 0
               : "calc(4rem + env(safe-area-inset-bottom, 0px))",
+            transition: "padding-bottom 300ms cubic-bezier(0.4, 0, 0.2, 1)",
           }}
         >
           {/* Filter bar */}

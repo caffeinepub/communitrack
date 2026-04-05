@@ -5,7 +5,8 @@ export function formatCurrency(
   currency: string,
   inrRate = 87,
 ): string {
-  if (!amount || amount === 0) return currency === "INR" ? "\u20b90" : "$0";
+  if (!amount || amount === 0 || Number.isNaN(amount))
+    return currency === "INR" ? "\u20b90" : "$0";
   if (currency === "INR") {
     const inr = amount * inrRate;
     if (inr >= 9950000)
@@ -24,7 +25,7 @@ export function formatCurrency(
 }
 
 export function compactNumber(num: number): string {
-  if (!num || num === 0) return "0";
+  if (!num || num === 0 || Number.isNaN(num)) return "0";
   if (num >= 995000)
     return `${(num / 1000000).toFixed(2).replace(/\.00$/, "")}M`;
   if (num >= 995) return `${(num / 1000).toFixed(1).replace(/\.0$/, "")}k`;

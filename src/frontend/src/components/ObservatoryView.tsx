@@ -98,7 +98,14 @@ export const ObservatoryView = memo(function ObservatoryView({
   totalRev,
 }: Props) {
   const scatterData = useMemo(
-    () => data.filter((d) => d.activeRevenue > 0),
+    () =>
+      data
+        .filter((d) => d.activeRevenue > 0)
+        .map((d) => ({
+          ...d,
+          // Ensure ticketSize reflects the effective ticket (handles fixed communities)
+          ticketSize: d.activeTicket ?? d.ticketSize,
+        })),
     [data],
   );
   const topEarners = useMemo(
@@ -140,10 +147,12 @@ export const ObservatoryView = memo(function ObservatoryView({
     let count100to499 = 0;
     let count500plus = 0;
     for (const d of data) {
-      if (d.ticketSize === 0) countFree++;
-      else if (d.ticketSize < 50) countUnder50++;
-      else if (d.ticketSize < 100) count50to99++;
-      else if (d.ticketSize < 500) count100to499++;
+      // Use activeTicket which correctly handles fixed-price communities
+      const t = d.activeTicket ?? d.ticketSize;
+      if (t === 0) countFree++;
+      else if (t < 50) countUnder50++;
+      else if (t < 100) count50to99++;
+      else if (t < 500) count100to499++;
       else count500plus++;
     }
     return [
@@ -179,8 +188,8 @@ export const ObservatoryView = memo(function ObservatoryView({
       <div className="bg-[#0a0a0a] border border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col h-[400px]">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-bold text-zinc-200 flex items-center gap-2 text-sm">
-            <TrendingUp className="w-4 h-4 text-zinc-400" /> Global Portfolio
-            Trajectory
+            <TrendingUp className="w-4 h-4 text-zinc-400" /> Portfolio
+            Trajectory (Projected)
           </h3>
           <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold bg-zinc-900 px-2 py-1 rounded">
             Interactive

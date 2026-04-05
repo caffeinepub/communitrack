@@ -2,7 +2,13 @@
 
 export function getColorForDelta(oldVal: number, newVal: number): string {
   if (oldVal === 0 && newVal === 0) return "rgb(255,255,255)";
-  if (oldVal === 0) return "oklch(0.72 0.18 142)";
+  if (oldVal === 0) {
+    if (newVal === 0) return "rgb(255,255,255)";
+    // Scale green intensity by magnitude of newVal ($5k = max green)
+    const intensity = Math.min(1, newVal / 5000);
+    const lightness = 0.72 - intensity * 0.15;
+    return `oklch(${lightness.toFixed(3)} 0.18 142)`;
+  }
   const pct = (newVal - oldVal) / oldVal;
   if (Math.abs(pct) < 0.005) return "rgb(240,240,240)";
 

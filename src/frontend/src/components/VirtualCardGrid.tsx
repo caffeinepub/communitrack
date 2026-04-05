@@ -1,6 +1,14 @@
 import { Users } from "lucide-react";
 import type React from "react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { getTicketTierInfo, getTierInfo } from "../data/tiers";
 import type { Community, EnrichedCommunity } from "../types";
 import { compactNumber } from "../utils/format";
@@ -47,7 +55,7 @@ type GridProps = {
 const CardRow = memo(function CardRow({
   rowIndex,
   cols,
-  displayData,
+  items,
   currency,
   format,
   isARR,
@@ -58,7 +66,7 @@ const CardRow = memo(function CardRow({
 }: {
   rowIndex: number;
   cols: number;
-  displayData: EnrichedCommunity[];
+  items: EnrichedCommunity[];
   currency: string;
   format: (a: number, c: string) => string;
   isARR: boolean;
@@ -68,7 +76,6 @@ const CardRow = memo(function CardRow({
   rowHeight: number;
 }) {
   const start = rowIndex * cols;
-  const items = displayData.slice(start, start + cols);
 
   return (
     <div
@@ -135,9 +142,18 @@ const CardRow = memo(function CardRow({
                   </span>
                   <span className="text-zinc-600">•</span>
                   <span>
-                    ${compactNumber(community.ticketSize)}
+                    $
+                    {compactNumber(
+                      community.pricingType === "fixed"
+                        ? community.fixedPrice
+                        : community.ticketSize,
+                    )}
                     <span className="text-zinc-400 text-[10px]">
-                      /{isARR ? "y" : "m"}
+                      {community.pricingType === "fixed"
+                        ? " 1x"
+                        : isARR
+                          ? "/y"
+                          : "/m"}
                     </span>
                   </span>
                 </div>
@@ -183,9 +199,7 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(640);
   const [scrollTop, setScrollTop] = useState(0);
-  const [clientHeight, setClientHeight] = useState(400);
-  const raf = useRef<number | null>(null);
-
+  const [clientHeight, setClientHeight] = useState(600);
   // ── filter display data ──────────────────────────────────────────────────
   const displayData = useMemo(() => {
     if (!isTop500 || !discoveryMap) return data;
@@ -206,13 +220,20 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
   const totalHeight = rowCount * rowHeight;
 
   // ── measure container width ──────────────────────────────────────────────
+  // Synchronously initialize clientHeight on mount to avoid first-render wrong calculation
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      setClientHeight(containerRef.current.clientHeight || 600);
+    }
+  }, []);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width ?? 640;
       setContainerWidth(w);
-      setClientHeight(entries[0]?.contentRect.height ?? 400);
+      setClientHeight(entries[0]?.contentRect.height ?? 600);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -225,22 +246,11 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
       const st = el.scrollTop;
       const sh = el.scrollHeight;
       const ch = el.clientHeight;
-
-      if (raf.current) cancelAnimationFrame(raf.current);
-      raf.current = requestAnimationFrame(() => {
-        setScrollTop(st);
-        onScroll?.(st, sh, ch);
-      });
+      // Call directly — parent processScroll already guards with its own rAF
+      setScrollTop(st);
+      onScroll?.(st, sh, ch);
     },
     [onScroll],
-  );
-
-  // cleanup raf on unmount
-  useEffect(
-    () => () => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-    },
-    [],
   );
 
   // ── compute visible row range ────────────────────────────────────────────
@@ -275,7 +285,13 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
       className="custom-scrollbar"
     >
       {/* spacer div sets total scroll height */}
-      <div style={{ height: totalHeight, position: "relative" }}>
+      <div
+        style={{
+          height: totalHeight,
+          position: "relative",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)",
+        }}
+      >
         {/* offset wrapper for the rendered window */}
         <div
           style={{
@@ -286,21 +302,25 @@ export const VirtualCardGrid = memo(function VirtualCardGrid({
             padding: "0 16px",
           }}
         >
-          {visibleRows.map((rowIndex) => (
-            <CardRow
-              key={rowIndex}
-              rowIndex={rowIndex}
-              cols={cols}
-              displayData={displayData}
-              currency={currency}
-              format={format}
-              isARR={isARR}
-              isMegaAll={isMegaAll}
-              isTop500={isTop500}
-              discoveryMap={discoveryMap}
-              rowHeight={rowHeight}
-            />
-          ))}
+          {visibleRows.map((rowIndex) => {
+            const rowStart = rowIndex * cols;
+            const rowItems = displayData.slice(rowStart, rowStart + cols);
+            return (
+              <CardRow
+                key={rowIndex}
+                rowIndex={rowIndex}
+                cols={cols}
+                items={rowItems}
+                currency={currency}
+                format={format}
+                isARR={isARR}
+                isMegaAll={isMegaAll}
+                isTop500={isTop500}
+                discoveryMap={discoveryMap}
+                rowHeight={rowHeight}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

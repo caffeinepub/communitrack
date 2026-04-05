@@ -6,6 +6,12 @@ import type { Community, EnrichedCommunity } from "../types";
 import { getColorForDelta, getMrrGlowStyle } from "../utils/colorLogic";
 import { compactNumber } from "../utils/format";
 
+// Module-level constants to avoid per-render allocations
+const DEC_2025 = new Date(2025, 11, 1);
+const NOW = new Date();
+const MONTHS_ELAPSED =
+  (NOW.getTime() - DEC_2025.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+
 type Props = {
   community: EnrichedCommunity;
   match: Community;
@@ -21,7 +27,11 @@ export const Top500ComparisonCard = memo(function Top500ComparisonCard({
   format,
   index: _index,
 }: Props) {
-  const ticketTier = getTicketTierInfo(community.ticketSize);
+  const effectiveTicket =
+    community.pricingType === "fixed"
+      ? community.fixedPrice
+      : community.ticketSize;
+  const ticketTier = getTicketTierInfo(effectiveTicket);
 
   const decMembers = community.members;
   const decTicket = community.ticketSize;
@@ -31,13 +41,9 @@ export const Top500ComparisonCard = memo(function Top500ComparisonCard({
   const nowTicket = match.ticketSize;
   const nowMrr = match.mrr;
 
-  const DEC_2025 = new Date(2025, 11, 1);
-  const NOW = new Date(2026, 3, 3);
-  const monthsElapsed =
-    (NOW.getTime() - DEC_2025.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
   const sparkData = [
     { t: 0, v: decMrr },
-    { t: monthsElapsed, v: nowMrr },
+    { t: MONTHS_ELAPSED, v: nowMrr },
   ];
 
   const membersColor = getColorForDelta(decMembers, nowMembers);
@@ -87,10 +93,14 @@ export const Top500ComparisonCard = memo(function Top500ComparisonCard({
 
       <div className="grid grid-cols-2 gap-2 mb-1">
         <div className="text-[11px] text-zinc-500">
-          {decTicket === 0 ? "Free" : `$${compactNumber(decTicket)}/m`}
+          {decTicket === 0
+            ? "Free"
+            : `$${compactNumber(decTicket)}${community.pricingType === "yearly" ? "/yr" : "/m"}`}
         </div>
         <div className="text-[11px] font-bold" style={{ color: ticketColor }}>
-          {nowTicket === 0 ? "Free" : `$${compactNumber(nowTicket)}/m`}
+          {nowTicket === 0
+            ? "Free"
+            : `$${compactNumber(nowTicket)}${community.pricingType === "yearly" || match?.pricingType === "yearly" ? "/yr" : "/m"}`}
         </div>
       </div>
 

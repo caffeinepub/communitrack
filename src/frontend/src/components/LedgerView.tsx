@@ -66,6 +66,8 @@ export const LedgerView = memo(function LedgerView({
               return (
                 <tr
                   key={community.id}
+                  tabIndex={0}
+                  aria-label={`Open ${community.name}`}
                   onClick={() =>
                     community.url && window.open(community.url, "_blank")
                   }
@@ -75,7 +77,7 @@ export const LedgerView = memo(function LedgerView({
                     window.open(community.url, "_blank")
                   }
                   style={{ animationDelay: `${Math.min(index, 30) * 20}ms` }}
-                  className={`border-b border-zinc-800/50 hover:bg-zinc-900 transition-colors animate-fadeIn ${tier.bg} ${
+                  className={`border-b border-zinc-800/50 hover:bg-zinc-900 transition-colors animate-fadeIn focus:outline-none focus:bg-zinc-900 ${tier.bg} ${
                     community.url ? "cursor-pointer" : ""
                   }`}
                 >
@@ -184,8 +186,8 @@ export const LedgerView = memo(function LedgerView({
                         nowMembers,
                       );
                       const mrrCol = getColorForDelta(decMrr, nowMrr);
-                      const DEC_2025 = new Date(2025, 11, 1);
-                      const NOW = new Date(2026, 3, 3);
+                      const DEC_2025 = new Date(2025, 11, 1); // Dec 1, 2025
+                      const NOW = new Date();
                       const monthsElapsed =
                         (NOW.getTime() - DEC_2025.getTime()) /
                         (1000 * 60 * 60 * 24 * 30.44);
