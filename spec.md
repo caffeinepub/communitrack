@@ -1,57 +1,81 @@
-# CommuniTrack — Performance Optimization
+# CommuniTrack
 
 ## Current State
 
-App.tsx is a single 6,400-line monolithic React component with 20+ useState declarations all living in the root `App` function. Every interaction (scroll, filter click, keypress, sidebar toggle) triggers a full re-render of the entire component tree. The scroll handler fires React setState at 60Hz. Layout-thrashing CSS transitions (max-height, width, padding) force browser layout recalculation every animation frame. 500+ comparison cards re-render without React.memo. The search input has a 150ms controlled-value lag. No list virtualization exists for 1000+ card Mega All view.
+Single monolithic `App.tsx` (6,467 lines) containing:
+- All 10 embedded CSV datasets as inline template literals (lines 76–2502)
+- Language detection, CSV parser, number formatters, utility functions (lines 2503–3070)
+- Main `App` component with all state, event handlers, sidebars, header, mobile nav (lines 3073–5147)
+- Subcomponents: `Top500ComparisonCard`, `MinimalCardsView`, `LedgerView`, `ObservatoryView`, `AICopilot`, `EmptyState` (lines 5147–6467)
+
+Known performance problems:
+1. Browser must parse/compile 6,467 lines before anything renders
+2. `MinimalCardsView` renders ALL cards as real DOM nodes at once — Mega All can have 3,000+ cards
+3. No dataset caching: switching back to a category re-fetches + re-parses the CSV every time
+4. `filteredData` useMemo runs `.toLowerCase()` on every community on every search keystroke
+5. Card animations trigger layout recalculation on every item via `animationDelay` inline style
+6. `ObservatoryView` recharts use `ResponsiveContainer` which re-measures on every parent resize
+7. No `React.lazy` / code splitting — all recharts, AICopilot, LedgerView downloaded on initial load
 
 ## Requested Changes (Diff)
 
 ### Add
-- `useReducer` for all filter state (search, mrrFilter, langFilter, ticketFilter, sortBy, sortDir, freeTierFilter, showFixed, showYearly, includeFreeThreshold) — single dispatch replaces 8-9 sequential setState calls on category switch
-- `useReducer` or grouped state object for UI chrome (isLeftOpen, isRightOpen, isFiltersOpen, isChatOpen, isZenMode)
-- `requestAnimationFrame` guard around scroll-driven setState (isScrollFocused) to cap React re-renders at 1/frame instead of 60/second
-- Separate `inputValue` local state for search input so keystrokes update visually immediately; only `search` (used for filtering) is debounced
-- `useMemo` for all Observatory computations (scatterData, topEarners, pieData, priceHistogram, timelineData)
-- `useMemo` for right-sidebar tier counts (4 filter passes → 1 single-pass O(n) computation)
-- Module-level constant `catIconMap` (remove the IIFE pattern from render)
+- Virtual scrolling for cards: only render cards visible in viewport + small overscan buffer (use `react-window` or a manual IntersectionObserver approach)
+- Dataset in-memory cache: once a category is fetched+parsed, cache the result in a module-level `Map`; re-selecting same category is instant
+- `React.lazy` + `Suspense` for heavy views: `LedgerView`, `ObservatoryView`, `AICopilot` — loaded only when first used
+- `useTransition` for category switches so the UI stays responsive during heavy state updates
+- Pre-parse `DISCOVERY_CSV` and `MUSIC_CSV` at module initialization (outside React lifecycle) so they are ready before first render
+- Stable search: lowercase the community name/creatorName once at parse time and store it; never recompute during filter
+- `ITEM_HEIGHT` constant for virtual list so layout math is O(1)
 
 ### Modify
-- **Scroll handler**: wrap `setIsScrollFocused` in `requestAnimationFrame`; use a ref flag to avoid multiple RAF enqueues
-- **CSS transitions**: replace all `transition-all` + `max-height`/`width` animations with `transform: translateY` / `transform: translateX` + `opacity` only. Specifically:
-  - Header scroll-hide: `transform: translateY(-100%)` instead of `max-h-0`
-  - Left sidebar: `transform: translateX(-100%)` instead of `w-0`
-  - Right sidebar: `transform: translateX(100%)` instead of `w-0`
-  - Filter bar: `transform: scaleY(0)` with `transform-origin: top` instead of `max-h-0`
-  - Mobile bottom nav: `transform: translateY(100%)` instead of display toggle
-  - All `transition-all` → `transition-[transform,opacity]`
-- **`Top500ComparisonCard`**: wrap in `React.memo` with proper prop comparison
-- **`CustomTooltip`**: move outside `ObservatoryView` component body to a module-level const; this stops React from unmounting/remounting it every render
-- **`findMatch` / `findLedgerMatch`**: move outside component bodies, accept `dec2025Data` as parameter
-- **`catIconMap` IIFE**: replace with module-level constant object
-- **Community IDs**: replace `Math.random()` in ID generation with deterministic hash from URL slug + name to enable stable React list reconciliation
-- **`decodeInlineCsv` in loadCategoryData megaall**: use already-memoized `discoveryData` and other category data instead of re-parsing from scratch
-- **`handleCategorySwitch`**: replace 8-9 sequential setState calls with a single `useReducer` dispatch that batches all filter resets atomically
-- **Search input**: use local `inputValue` state for the input's `value` prop; only the debounced `search` state drives filtering
-- **AICopilot `handleSend`**: wrap in `useCallback`
-- **Double `transition-all transition-transform` on same element**: remove the redundant `transition-all`
+- Split `App.tsx` into these files:
+  - `src/frontend/src/types.ts` — all shared types (`Community`, `EnrichedCommunity`, `CategoryId`)
+  - `src/frontend/src/data/csvData.ts` — all raw CSV strings + `DISCOVERY_CSV`, `MUSIC_CSV`, `TOP500_CSV`
+  - `src/frontend/src/data/dataEngine.ts` — `parseCSVData`, `detectLanguage`, `fetchAndDecodeCsv`, `decodeInlineCsv`, `dedupeByUrl`, `extractSlug`, `normalizeName`, dataset cache `Map`
+  - `src/frontend/src/data/tiers.ts` — `REVENUE_TIERS`, `TICKET_TIERS`, `FREE_TIERS`, `getTierInfo`, `getTicketTierInfo`
+  - `src/frontend/src/utils/format.ts` — `formatCurrency`, `compactNumber`
+  - `src/frontend/src/utils/colorLogic.ts` — `getColorForDelta`, `getMrrGlowStyle`
+  - `src/frontend/src/constants/categories.ts` — `CAT_ICON_MAP`, `CATEGORY_META`, `CATEGORIES` array
+  - `src/frontend/src/components/VirtualCardGrid.tsx` — virtual scrolling grid (replaces `MinimalCardsView` inner loop)
+  - `src/frontend/src/components/CommunityCard.tsx` — single card component (used by VirtualCardGrid)
+  - `src/frontend/src/components/Top500ComparisonCard.tsx` — extracted from App
+  - `src/frontend/src/components/LedgerView.tsx` — lazy-loaded
+  - `src/frontend/src/components/ObservatoryView.tsx` — lazy-loaded
+  - `src/frontend/src/components/AICopilot.tsx` — lazy-loaded
+  - `src/frontend/src/components/EmptyState.tsx` — tiny, always loaded
+  - `src/frontend/src/components/Sidebar.tsx` — left filter sidebar
+  - `src/frontend/src/components/MobileFilterDrawer.tsx` — mobile bottom sheet
+  - `src/frontend/src/components/MobileCategoryPicker.tsx` — 2-col category overlay
+  - `src/frontend/src/App.tsx` — orchestrator only (~500 lines): state, category switching, layout
+- In `filteredData` useMemo: use pre-lowercased `nameLower` field stored at parse time instead of calling `.toLowerCase()` on every render
+- In `loadCategoryData`: check module-level cache before fetching; store result in cache after loading
+- VirtualCardGrid: use `react-window` `FixedSizeGrid` or `FixedSizeList` to render only in-viewport cards
+- Recharts `ResponsiveContainer` in Observatory: wrap in `React.lazy` and only mount when view === 'observatory'
 
 ### Remove
-- All 65+ instances of `transition-all` that animate layout properties — replace with targeted `transition-[transform,opacity]`
-- The IIFE pattern wrapping Top500/MegaAll button render logic (inline directly)
-- Random ID generation per community — replace with stable deterministic IDs
+- Inline CSV data from `App.tsx` (moved to `csvData.ts`)
+- All subcomponents from `App.tsx` (moved to dedicated files)
+- `animationDelay` inline style on every card (causes style recalculation; keep hover animations only)
 
 ## Implementation Plan
 
-1. **Batch filter state into a single useReducer** — define `filterState` + `filterReducer` at module level; wire existing setState call sites to dispatch actions. Category switch dispatches a single `RESET_FILTERS` action with the new category.
-2. **Fix scroll handler** — add `rafPending` ref; in scroll handler, only call `setIsScrollFocused` inside an RAF, guard with the ref to avoid queueing duplicates.
-3. **Fix all layout-thrashing transitions** — audit every `transition-all`, `max-h-*`, `w-0`/`w-[230px]` animation. Replace with transform/opacity-only transitions using absolute/fixed positioning where needed (sidebars stay in DOM, use `translateX`; header uses `translateY`; filter bar uses `scaleY`).
-4. **Memoize `Top500ComparisonCard`** — add `React.memo` wrapper with shallow comparison.
-5. **Move `CustomTooltip` to module level** — ensure it doesn't close over any component state.
-6. **Move `findMatch`/`findLedgerMatch` out of render** — pure functions, accept data as params.
-7. **Fix search input lag** — add `localSearch` state; bind `value={localSearch}`, update immediately on change; debounce only the filter `setSearch`.
-8. **Memoize Observatory computations** — wrap in `useMemo` with `data` as dependency.
-9. **Right-sidebar tier counts** — single `useMemo` O(n) pass.
-10. **Stable community IDs** — deterministic hash: `btoa(url || name).replace(/[^a-z0-9]/gi, '').slice(0, 12)`.
-11. **catIconMap constant** — module-level const, remove IIFE from render.
-12. **AICopilot handleSend** — wrap in `useCallback`.
-13. Validate and build.
+1. Create `src/frontend/src/types.ts` with all shared types
+2. Create `src/frontend/src/data/csvData.ts` with all 3 CSV strings
+3. Create `src/frontend/src/data/dataEngine.ts` with parser, decoder, cache Map, slug/name utils
+4. Create `src/frontend/src/data/tiers.ts` with tier configs and lookup functions
+5. Create `src/frontend/src/utils/format.ts` and `src/frontend/src/utils/colorLogic.ts`
+6. Create `src/frontend/src/constants/categories.ts`
+7. Create `src/frontend/src/components/EmptyState.tsx`
+8. Create `src/frontend/src/components/CommunityCard.tsx` — memoized single card
+9. Create `src/frontend/src/components/Top500ComparisonCard.tsx` — memoized
+10. Create `src/frontend/src/components/VirtualCardGrid.tsx` — virtual scroll using `react-window` FixedSizeList with variable-column grid via CSS; renders only viewport items + 5 overscan
+11. Create `src/frontend/src/components/LedgerView.tsx`
+12. Create `src/frontend/src/components/ObservatoryView.tsx`
+13. Create `src/frontend/src/components/AICopilot.tsx`
+14. Create `src/frontend/src/components/Sidebar.tsx`
+15. Create `src/frontend/src/components/MobileFilterDrawer.tsx`
+16. Create `src/frontend/src/components/MobileCategoryPicker.tsx`
+17. Rewrite `src/frontend/src/App.tsx` as lean orchestrator with `React.lazy` for heavy views
+18. Add `react-window` to package.json dependencies
+19. Validate with typecheck + build
