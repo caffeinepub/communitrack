@@ -1,22 +1,31 @@
 import {
+  Activity,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Banknote,
   BarChart3,
   Bot,
+  Brain,
   CircleDot,
+  Cpu,
   Crown,
   DollarSign,
+  Dumbbell,
   Eye,
   EyeOff,
   Filter,
   FilterX,
   Globe,
+  Heart,
+  HeartHandshake,
   IndianRupee,
   Layers,
   LayoutGrid,
   Maximize2,
   Minimize2,
+  Music2,
+  Palette,
   PanelLeft,
   PanelLeftClose,
   PanelRight,
@@ -27,12 +36,17 @@ import {
   SlidersHorizontal,
   Sparkles,
   Sprout,
+  Star,
+  Sun,
   Table2,
   Tag,
   Target,
+  Telescope,
   TrendingUp,
+  Trophy,
   Upload,
   Users,
+  Wand2,
   X,
 } from "lucide-react";
 import type React from "react";
@@ -2620,17 +2634,44 @@ const parseCSVData = (csvText: string) => {
         if (memMatch[2].toLowerCase() === "m") members *= 1000000;
       }
 
+      // Detect pricing type from raw price string
+      // $X/month or $X/mo -> monthly
+      // $X/year or $X/yr -> yearly
+      // plain $X (no qualifier) -> fixed one-time
+      // Free or $0 -> monthly (free)
       let ticketSize = 0;
-      const priceExtractStr = searchString;
-      if (!/free/i.test(priceExtractStr) || /\$[\d,]+/.test(priceExtractStr)) {
-        const pMatch = priceExtractStr.replace(/,/g, "").match(/\$([\d.]+)/);
+      let yearlyPrice = 0;
+      let fixedPrice = 0;
+      let pricingType: "monthly" | "yearly" | "fixed" = "monthly";
+
+      const priceSource = priceStrRaw || searchString;
+      const isFreePrice =
+        /free/i.test(priceSource) && !/\$[\d]/.test(priceSource);
+
+      if (!isFreePrice) {
+        const cleanPrice = priceSource.replace(/,/g, "");
+        const pMatch = cleanPrice.match(/\$([\d.]+)/);
         if (pMatch) {
-          ticketSize = Number.parseFloat(pMatch[1]);
-          if (/year/i.test(priceExtractStr)) ticketSize = ticketSize / 12;
+          const rawVal = Number.parseFloat(pMatch[1]);
+          const hasMonth = /\/month|\/mo\b/i.test(priceSource);
+          const hasYear = /\/year|\/yr\b/i.test(priceSource);
+
+          if (hasYear) {
+            pricingType = "yearly";
+            yearlyPrice = rawVal;
+            ticketSize = Math.round(rawVal / 12);
+          } else if (hasMonth) {
+            pricingType = "monthly";
+            ticketSize = Math.round(rawVal);
+          } else {
+            // Plain $NNN with no /month or /year qualifier = fixed one-time
+            pricingType = "fixed";
+            fixedPrice = rawVal;
+            ticketSize = 0; // no recurring revenue
+          }
         }
       }
 
-      ticketSize = Math.round(ticketSize);
       members = Math.round(members);
 
       if (!name) return null;
@@ -2663,11 +2704,13 @@ const parseCSVData = (csvText: string) => {
         lower.includes("piano")
       )
         tags.push("Arts");
-      if (ticketSize === 0) tags.push("Free");
-      if (ticketSize >= 500) tags.push("High-Ticket");
+      if (ticketSize === 0 && pricingType === "monthly") tags.push("Free");
+      if (ticketSize >= 500 || yearlyPrice >= 500) tags.push("High-Ticket");
       if (tags.length === 0) tags.push("Community");
 
       const languageData = detectLanguage(name);
+      const mrrVal =
+        pricingType === "fixed" ? 0 : (members || 0) * (ticketSize || 0);
 
       return {
         id: `node-${index}-${Math.random().toString(36).substr(2, 4)}`,
@@ -2675,20 +2718,28 @@ const parseCSVData = (csvText: string) => {
         creatorName: "Network Node",
         members: members || 0,
         ticketSize: ticketSize || 0,
-        mrr: (members || 0) * (ticketSize || 0),
+        mrr: mrrVal,
         tags: Array.from(new Set(tags)),
         language: languageData,
         url: url,
+        pricingType,
+        yearlyPrice,
+        fixedPrice,
+        sourceCategory: "",
       };
     })
     .filter(Boolean);
 };
 
 // --- NUMBER FORMATTING ---
-const formatCurrency = (amount: number, currency: string): string => {
+const formatCurrency = (
+  amount: number,
+  currency: string,
+  inrRate = 87,
+): string => {
   if (!amount || amount === 0) return currency === "INR" ? "₹0" : "$0";
   if (currency === "INR") {
-    const inr = amount * 83;
+    const inr = amount * inrRate;
     if (inr >= 9950000)
       return `₹${(inr / 10000000).toFixed(2).replace(/\.00$/, "")}Cr`;
     if (inr >= 99500)
@@ -2722,6 +2773,17 @@ function extractSlug(url: string): string {
 
 function normalizeName(n: string): string {
   return n.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function dedupeByUrl(communities: Community[]): Community[] {
+  const seen = new Set<string>();
+  return communities.filter((c) => {
+    const slug = extractSlug(c.url);
+    if (!slug) return true;
+    if (seen.has(slug)) return false;
+    seen.add(slug);
+    return true;
+  });
 }
 
 function getColorForDelta(oldVal: number, newVal: number): string {
@@ -2963,6 +3025,10 @@ type Community = {
   tags: string[];
   language: { lang: string; flag: string };
   url: string;
+  pricingType: "monthly" | "yearly" | "fixed";
+  yearlyPrice: number;
+  fixedPrice: number;
+  sourceCategory: string;
 };
 
 type EnrichedCommunity = Community & {
@@ -2970,21 +3036,62 @@ type EnrichedCommunity = Community & {
   activeTicket: number;
 };
 
+// --- BASE64 DECODE HELPER ---
+async function fetchAndDecodeCsv(url: string): Promise<Community[]> {
+  const res = await fetch(url);
+  let text = await res.text();
+  text = text.trim();
+  // Strip BOM if present
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  // Try base64 decode
+  try {
+    const decoded = atob(text);
+    text = decoded;
+  } catch {
+    // Already plain text, use as-is
+  }
+  return dedupeByUrl(parseCSVData(text) as Community[]);
+}
+
+function decodeInlineCsv(rawCsv: string): Community[] {
+  let text = rawCsv.trim();
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  try {
+    const decoded = atob(text);
+    text = decoded;
+  } catch {
+    // plain text
+  }
+  return dedupeByUrl(parseCSVData(text) as Community[]);
+}
+
 // --- MAIN APP ---
 export default function App() {
-  const [communities, setCommunities] = useState<Community[]>(
-    () => parseCSVData(DISCOVERY_CSV) as Community[],
-  );
+  const [communities, setCommunities] = useState<Community[]>([]);
   const [activeCategory, setActiveCategory] = useState<
-    "discovery" | "music" | "top500"
-  >("discovery");
+    | "discovery"
+    | "music"
+    | "selfimprovement"
+    | "money"
+    | "spirituality"
+    | "tech"
+    | "health"
+    | "relationships"
+    | "sports"
+    | "hobbies"
+    | "top500"
+    | "megaall"
+  >("megaall");
+  const [isLoading, setIsLoading] = useState(false);
+  const [inrRate, setInrRate] = useState(87);
+  const [inrRateInput, setInrRateInput] = useState("87");
   const [hideNoMatch, setHideNoMatch] = useState(false);
   const [mrrDeltaFilter, setMrrDeltaFilter] = useState<
     "all" | "growth" | "declined"
   >("all");
 
   const discoveryData = useMemo(
-    () => parseCSVData(DISCOVERY_CSV) as Community[],
+    () => dedupeByUrl(decodeInlineCsv(DISCOVERY_CSV)),
     [],
   );
 
@@ -3016,6 +3123,8 @@ export default function App() {
   const [freeTierFilter, setFreeTierFilter] = useState("none");
   const [isFreeModalOpen, setIsFreeModalOpen] = useState(false);
   const [tempFreeThreshold, setTempFreeThreshold] = useState(0);
+  const [showFixed, setShowFixed] = useState(false);
+  const [showYearly, setShowYearly] = useState(false);
 
   const [isZenMode, setIsZenMode] = useState(false);
   const [isLeftOpen, setIsLeftOpen] = useState(true);
@@ -3024,6 +3133,9 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const uniqueTags = useMemo(() => {
     const tags = new Set<string>();
@@ -3045,6 +3157,7 @@ export default function App() {
       .sort((a, b) => a.lang.localeCompare(b.lang));
   }, [communities]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: showFixed and showYearly are used in filter callbacks
   const filteredData = useMemo((): EnrichedCommunity[] => {
     const result = communities
       .filter(
@@ -3063,8 +3176,18 @@ export default function App() {
       activeTicket: c.ticketSize * (isARR ? 12 : 1),
     }));
 
+    // Apply exclusive pricing type filter first
     enriched = enriched.filter((c) => {
-      const isFree = c.ticketSize === 0;
+      if (showFixed) return c.pricingType === "fixed";
+      if (showYearly) return c.pricingType === "yearly";
+      return c.pricingType === "monthly"; // default: only monthly
+    });
+
+    enriched = enriched.filter((c) => {
+      // Free means pricingType=monthly AND ticketSize=0
+      const isFree = c.pricingType === "monthly" && c.ticketSize === 0;
+      // When pricing type filters are active, bypass free/paid logic
+      if (showFixed || showYearly) return true;
 
       if (freeTierFilter !== "none") {
         if (!isFree) return false;
@@ -3124,6 +3247,8 @@ export default function App() {
     isARR,
     includeFreeThreshold,
     freeTierFilter,
+    showFixed,
+    showYearly,
   ]);
 
   const totalRev = useMemo(
@@ -3154,23 +3279,138 @@ export default function App() {
     [],
   );
 
-  const handleCategorySwitch = useCallback(
-    (cat: "discovery" | "music" | "top500") => {
-      setActiveCategory(cat);
-      const csvMap = {
-        discovery: DISCOVERY_CSV,
-        music: MUSIC_CSV,
-        top500: TOP500_CSV,
+  const loadCategoryData = useCallback(
+    async (
+      cat:
+        | "discovery"
+        | "music"
+        | "selfimprovement"
+        | "money"
+        | "spirituality"
+        | "tech"
+        | "health"
+        | "relationships"
+        | "sports"
+        | "hobbies"
+        | "top500"
+        | "megaall",
+    ): Promise<Community[]> => {
+      const CSV_FILE_MAP: Record<string, string> = {
+        selfimprovement:
+          "/assets/skool_selfimprovement-019d5ccc-fc29-76fb-b3e3-aff27cf36f87.csv",
+        money:
+          "/assets/skool_money_1000_-_complete-019d5ccc-fc0a-74fb-9485-8724efc876d4.csv",
+        spirituality:
+          "/assets/skool_spirituality_complete-019d5ccc-fc2f-7762-80a1-4f5f6155a891.csv",
+        tech: "/assets/skool_tech_1000_-complete-019d5ccc-fc44-751b-a104-a2ca165cc3e6.csv",
+        health:
+          "/assets/skool_health_complete-019d5ccc-fc97-70c8-8850-886b5deb1d20.csv",
+        relationships:
+          "/assets/skool_relationships-019d5ccc-fc99-717f-8d1d-ec088257a320.csv",
+        sports:
+          "/assets/skool_sports_complete-019d5ccc-fcd4-7398-804f-500ce2ecb2d9.csv",
+        hobbies:
+          "/assets/skool_hobbies_complete-019d5ccc-fca5-74dc-a679-3633e45ac44e.csv",
       };
-      setCommunities(parseCSVData(csvMap[cat]) as Community[]);
+
+      if (cat === "discovery") return decodeInlineCsv(DISCOVERY_CSV);
+      if (cat === "music") return decodeInlineCsv(MUSIC_CSV);
+      if (cat === "top500") return decodeInlineCsv(TOP500_CSV);
+
+      const CAT_LABELS: Record<string, string> = {
+        selfimprovement: "selfimprovement",
+        money: "money",
+        spirituality: "spirituality",
+        tech: "tech",
+        health: "health",
+        relationships: "relationships",
+        sports: "sports",
+        hobbies: "hobbies",
+      };
+
+      if (cat === "megaall") {
+        const discoveryItems = decodeInlineCsv(DISCOVERY_CSV).map((c) => ({
+          ...c,
+          sourceCategory: "discovery",
+        }));
+        const musicItems = decodeInlineCsv(MUSIC_CSV).map((c) => ({
+          ...c,
+          sourceCategory: "music",
+        }));
+
+        const fetchedArrays = await Promise.all(
+          Object.entries(CSV_FILE_MAP).map(async ([catKey, fileUrl]) => {
+            const items = await fetchAndDecodeCsv(fileUrl);
+            return items.map((c) => ({
+              ...c,
+              sourceCategory: CAT_LABELS[catKey] || catKey,
+            }));
+          }),
+        );
+        const all = [...discoveryItems, ...musicItems, ...fetchedArrays.flat()];
+        // Deduplicate by URL slug first, then by normalized name
+        const seenSlugs = new Set<string>();
+        const seenNames = new Set<string>();
+        const deduped: Community[] = [];
+        for (const c of all) {
+          const slug = extractSlug(c.url);
+          const nm = normalizeName(c.name);
+          if (slug && seenSlugs.has(slug)) continue;
+          if (!slug && seenNames.has(nm)) continue;
+          if (slug) seenSlugs.add(slug);
+          seenNames.add(nm);
+          deduped.push(c);
+        }
+        return deduped;
+      }
+
+      // Fetched categories - all base64-encoded on disk
+      const url = CSV_FILE_MAP[cat];
+      return fetchAndDecodeCsv(url);
+    },
+    [],
+  );
+
+  const handleCategorySwitch = useCallback(
+    async (
+      cat:
+        | "discovery"
+        | "music"
+        | "selfimprovement"
+        | "money"
+        | "spirituality"
+        | "tech"
+        | "health"
+        | "relationships"
+        | "sports"
+        | "hobbies"
+        | "top500"
+        | "megaall",
+    ) => {
+      setActiveCategory(cat);
       setFilterCategory("All");
       setMrrFilter("all");
       setLangFilter("All");
       setTicketFilter("All");
       setFreeTierFilter("none");
       setSearch("");
+      setShowFixed(false);
+      setShowYearly(false);
+      setIsLoading(true);
+      try {
+        const data = await loadCategoryData(cat);
+        setCommunities(data);
+      } finally {
+        setIsLoading(false);
+      }
     },
-    [],
+    [loadCategoryData],
+  );
+
+  const boundFormat = useCallback(
+    (amount: number, currency: string) =>
+      formatCurrency(amount, currency, inrRate),
+    [inrRate],
   );
 
   const clearFilters = useCallback(() => {
@@ -3181,6 +3421,21 @@ export default function App() {
     setTicketFilter("All");
     setIncludeFreeThreshold(null);
     setFreeTierFilter("none");
+  }, []);
+
+  // Load Mega All on initial mount
+  useEffect(() => {
+    setIsLoading(true);
+    loadCategoryData("megaall").then((data) => {
+      setCommunities(data);
+      setIsLoading(false);
+    });
+  }, [loadCategoryData]);
+
+  // Debounced search handler
+  const handleSearch = useCallback((val: string) => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setSearch(val), 150);
   }, []);
 
   const handleZenMode = useCallback((status: boolean) => {
@@ -3244,12 +3499,12 @@ export default function App() {
       )}
 
       {!isZenMode && (
-        <header className="h-14 flex items-center justify-between px-3 md:px-4 shrink-0 bg-[#09090b] border-b border-zinc-800/80 z-20">
-          <div className="flex items-center gap-3">
+        <header className="h-14 flex items-center gap-2 px-3 md:px-4 shrink-0 bg-[#09090b]/95 backdrop-blur-sm border-b border-zinc-800/60 z-20">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => setIsLeftOpen(!isLeftOpen)}
-              className={`p-1.5 rounded-md transition-all duration-150 active:scale-95 ${isLeftOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
+              className={`p-1.5 rounded-md motion-safe:transition-all duration-150 active:scale-95 hidden md:flex items-center justify-center min-w-[36px] min-h-[36px] ${isLeftOpen ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"}`}
             >
               {isLeftOpen ? (
                 <PanelLeftClose className="w-4 h-4" />
@@ -3257,52 +3512,229 @@ export default function App() {
                 <PanelLeft className="w-4 h-4" />
               )}
             </button>
-            <div className="hidden sm:flex items-center gap-2 mr-2">
-              <div className="w-6 h-6 bg-zinc-200 text-zinc-900 rounded-[6px] flex items-center justify-center">
-                <Layers className="w-3.5 h-3.5" />
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="w-7 h-7 bg-white/90 text-zinc-900 rounded-[7px] flex items-center justify-center">
+                <Layers className="w-4 h-4" />
               </div>
-              <span className="font-semibold text-sm tracking-tight text-zinc-200">
-                CommuniTrack
-              </span>
             </div>
 
-            {/* Category Switcher */}
-            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-full p-0.5 shrink-0">
-              <button
-                type="button"
-                data-ocid="category.discovery.tab"
-                onClick={() => handleCategorySwitch("discovery")}
-                className={`px-3 py-1 text-xs font-bold rounded-full transition-all duration-150 active:scale-95 ${activeCategory === "discovery" ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-900/40" : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
-              >
-                🔭 Discovery
-              </button>
-              <button
-                type="button"
-                data-ocid="category.music.tab"
-                onClick={() => handleCategorySwitch("music")}
-                className={`px-3 py-1 text-xs font-bold rounded-full transition-all duration-150 active:scale-95 ${activeCategory === "music" ? "bg-gradient-to-r from-pink-600 to-rose-500 text-white shadow-md shadow-pink-900/40" : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
-              >
-                🎵 Music
-              </button>
-              <button
-                type="button"
-                data-ocid="category.top500.tab"
-                onClick={() => handleCategorySwitch("top500")}
-                className={`px-3 py-1 text-xs font-bold rounded-full transition-all duration-150 active:scale-95 ${activeCategory === "top500" ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-900/40" : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
-              >
-                🏆 Top 500
-              </button>
+            {/* Category Switcher - icon-only by default, label appears when active */}
+            <div
+              className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800/60 rounded-full px-2 py-[3px] overflow-x-auto md:overflow-hidden shrink-0 scrollbar-hide"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {(
+                [
+                  {
+                    id: "discovery",
+                    Icon: Telescope,
+                    label: "Discovery",
+                    activeClass:
+                      "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-violet-900/40",
+                    iconColor: "text-violet-400",
+                  },
+                  {
+                    id: "music",
+                    Icon: Music2,
+                    label: "Music",
+                    activeClass:
+                      "bg-gradient-to-r from-pink-600 to-rose-500 text-white shadow-pink-900/40",
+                    iconColor: "text-pink-400",
+                  },
+                  {
+                    id: "selfimprovement",
+                    Icon: Brain,
+                    label: "Self Improve",
+                    activeClass:
+                      "bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-cyan-900/40",
+                    iconColor: "text-cyan-400",
+                  },
+                  {
+                    id: "money",
+                    Icon: Banknote,
+                    label: "Money",
+                    activeClass:
+                      "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-900/40",
+                    iconColor: "text-emerald-400",
+                  },
+                  {
+                    id: "spirituality",
+                    Icon: Sun,
+                    label: "Spirituality",
+                    activeClass:
+                      "bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-amber-900/40",
+                    iconColor: "text-amber-400",
+                  },
+                  {
+                    id: "tech",
+                    Icon: Cpu,
+                    label: "Tech",
+                    activeClass:
+                      "bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-blue-900/40",
+                    iconColor: "text-blue-400",
+                  },
+                  {
+                    id: "health",
+                    Icon: Activity,
+                    label: "Health",
+                    activeClass:
+                      "bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-900/40",
+                    iconColor: "text-red-400",
+                  },
+                  {
+                    id: "relationships",
+                    Icon: HeartHandshake,
+                    label: "Relations",
+                    activeClass:
+                      "bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-rose-900/40",
+                    iconColor: "text-rose-400",
+                  },
+                  {
+                    id: "sports",
+                    Icon: Dumbbell,
+                    label: "Sports",
+                    activeClass:
+                      "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-900/40",
+                    iconColor: "text-orange-400",
+                  },
+                  {
+                    id: "hobbies",
+                    Icon: Wand2,
+                    label: "Hobbies",
+                    activeClass:
+                      "bg-gradient-to-r from-purple-500 to-violet-500 text-white shadow-purple-900/40",
+                    iconColor: "text-purple-400",
+                  },
+                ] as const
+              ).map(({ id, Icon, label, activeClass, iconColor }) => {
+                const isActive = activeCategory === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    data-ocid={`category.${id}.tab`}
+                    onClick={() =>
+                      handleCategorySwitch(
+                        id as Parameters<typeof handleCategorySwitch>[0],
+                      )
+                    }
+                    title={label}
+                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95 shrink-0 ${isActive ? `${activeClass} shadow-md` : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
+                  >
+                    <Icon
+                      className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : iconColor}`}
+                      strokeWidth={2}
+                    />
+                    <span
+                      style={{
+                        maxWidth: isActive ? "60px" : "0px",
+                        opacity: isActive ? 1 : 0,
+                        overflow: "hidden",
+                        transition:
+                          "max-width 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.12s ease",
+                        whiteSpace: "nowrap",
+                        display: "inline-block",
+                      }}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-zinc-700/60 mx-0.5 shrink-0" />
+
+              {/* Top 500 */}
+              {(() => {
+                const isActive = activeCategory === "top500";
+                return (
+                  <button
+                    key="top500"
+                    type="button"
+                    data-ocid="category.top500.tab"
+                    onClick={() =>
+                      handleCategorySwitch(isActive ? "discovery" : "top500")
+                    }
+                    title="Top 500"
+                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95 shrink-0 ${isActive ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-md shadow-amber-900/40" : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
+                  >
+                    <Trophy
+                      className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : "text-amber-500"}`}
+                      strokeWidth={2}
+                    />
+                    <span
+                      style={{
+                        maxWidth: isActive ? "50px" : "0px",
+                        opacity: isActive ? 1 : 0,
+                        overflow: "hidden",
+                        transition:
+                          "max-width 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.12s ease",
+                        whiteSpace: "nowrap",
+                        display: "inline-block",
+                      }}
+                    >
+                      Top 500
+                    </span>
+                  </button>
+                );
+              })()}
+
+              {/* Mega All */}
+              {(() => {
+                const isActive = activeCategory === "megaall";
+                return (
+                  <button
+                    key="megaall"
+                    type="button"
+                    data-ocid="category.megaall.tab"
+                    onClick={() =>
+                      handleCategorySwitch(isActive ? "discovery" : "megaall")
+                    }
+                    title="Mega All"
+                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95 shrink-0 ${isActive ? "bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-900/40" : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80"}`}
+                  >
+                    <Layers
+                      className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : "text-indigo-400"}`}
+                      strokeWidth={2}
+                    />
+                    <span
+                      style={{
+                        maxWidth: isActive ? "55px" : "0px",
+                        opacity: isActive ? 1 : 0,
+                        overflow: "hidden",
+                        transition:
+                          "max-width 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.12s ease",
+                        whiteSpace: "nowrap",
+                        display: "inline-block",
+                      }}
+                    >
+                      Mega All
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
 
-            <div className="relative w-48 sm:w-64 flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+            <div className="relative flex items-center">
+              <Search className="absolute left-2.5 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
               <input
+                ref={searchInputRef}
                 type="text"
-                placeholder="Search data..."
+                placeholder="Search..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-md py-1 pl-8 pr-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 transition-colors"
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-24 sm:w-32 bg-zinc-900/80 border border-zinc-800/80 rounded-full py-1.5 pl-7 pr-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 focus:w-32 sm:focus:w-40 motion-safe:transition-all duration-200 min-h-[36px]"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 text-zinc-500 hover:text-zinc-300"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -3314,6 +3746,17 @@ export default function App() {
               title="Focus Mode"
             >
               <Maximize2 className="w-4 h-4" />
+            </button>
+
+            {/* Mobile filter button */}
+            <button
+              type="button"
+              data-ocid="mobile.filter.button"
+              onClick={() => setMobileFilterOpen(true)}
+              className="flex md:hidden p-1.5 rounded-md transition-all duration-150 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 active:scale-95 min-w-[36px] min-h-[36px] items-center justify-center"
+              title="Filters"
+            >
+              <Filter className="w-4 h-4" />
             </button>
 
             <button
@@ -3348,17 +3791,45 @@ export default function App() {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setCurrency(currency === "USD" ? "INR" : "USD")}
-              className="text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-all duration-150 active:scale-95 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md mx-1"
-            >
-              {currency === "USD" ? (
-                <DollarSign className="w-3.5 h-3.5" />
-              ) : (
-                <IndianRupee className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrency(currency === "USD" ? "INR" : "USD")}
+                className="text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-all duration-150 active:scale-95 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md"
+              >
+                {currency === "USD" ? (
+                  <DollarSign className="w-3.5 h-3.5" />
+                ) : (
+                  <IndianRupee className="w-3.5 h-3.5" />
+                )}
+              </button>
+              {currency === "INR" && (
+                <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-md overflow-hidden">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={inrRateInput}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      setInrRateInput(raw);
+                      const parsed = Number.parseInt(raw, 10);
+                      if (parsed >= 1) setInrRate(parsed);
+                    }}
+                    onBlur={() => {
+                      const parsed = Number.parseInt(inrRateInput, 10);
+                      const valid = parsed >= 1 ? parsed : 87;
+                      setInrRate(valid);
+                      setInrRateInput(String(valid));
+                    }}
+                    className="w-14 bg-transparent text-[11px] font-bold text-amber-400 px-1.5 py-1 focus:outline-none text-center"
+                    title="INR exchange rate"
+                  />
+                  <span className="text-[9px] text-zinc-500 pr-1.5 font-bold">
+                    ₹/$
+                  </span>
+                </div>
               )}
-            </button>
+            </div>
 
             <button
               type="button"
@@ -3385,13 +3856,66 @@ export default function App() {
       )}
 
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile sidebar overlay */}
+        {mobileFilterOpen && (
+          <div
+            className="fixed inset-0 z-50 md:hidden"
+            data-ocid="mobile.filter.modal"
+          >
+            <button
+              type="button"
+              aria-label="Close filters"
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm w-full h-full"
+              onClick={() => setMobileFilterOpen(false)}
+            />
+            <aside className="absolute left-0 top-0 bottom-0 w-[280px] bg-[#09090b] border-r border-zinc-800/80 flex flex-col overflow-y-auto custom-scrollbar z-10 translate-x-0 motion-safe:transition-transform motion-safe:duration-200">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/60 shrink-0">
+                <span className="text-sm font-bold text-zinc-200">Filters</span>
+                <button
+                  type="button"
+                  data-ocid="mobile.filter.close_button"
+                  onClick={() => setMobileFilterOpen(false)}
+                  className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 active:scale-95 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="w-[280px] flex flex-col flex-1">
+                <div className="p-3 space-y-1 mt-2 pt-2">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 py-2">
+                    Workspace
+                  </div>
+                  {[
+                    { id: "gallery", icon: LayoutGrid, label: "Cards View" },
+                    { id: "table", icon: Table2, label: "Data Ledger" },
+                    { id: "analytics", icon: BarChart3, label: "Observatory" },
+                  ].map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      onClick={() => {
+                        setView(item.id);
+                        setMobileFilterOpen(false);
+                      }}
+                      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg motion-safe:transition-all duration-150 text-sm font-medium active:scale-95 min-h-[44px] ${view === item.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
+
         {!isZenMode && (
           <aside
-            className={`border-r border-zinc-800/80 bg-[#09090b] flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform transition-all duration-200 ${isLeftOpen ? "w-[230px] opacity-100" : "w-0 opacity-0 border-none"}`}
+            className={`border-r border-zinc-800/80 bg-[#09090b] hidden md:flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform-gpu motion-safe:transition-all duration-200 ${isLeftOpen ? "w-[230px] opacity-100" : "w-0 opacity-0 border-none"}`}
           >
             <div className="w-[230px] flex flex-col min-h-full">
-              <div className="p-3 space-y-1 mt-2">
-                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-3 py-2">
+              <div className="p-3 space-y-1 mt-2 pt-2">
+                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 py-2">
                   Workspace
                 </div>
                 {[
@@ -3411,9 +3935,54 @@ export default function App() {
                 ))}
               </div>
 
+              {/* Pricing Type Section */}
+              <div className="p-3 space-y-1 mt-2 border-t border-zinc-800/50 pt-4">
+                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em] px-3 pb-2">
+                  Pricing Type
+                </div>
+                <button
+                  type="button"
+                  data-ocid="pricing.fixed.toggle"
+                  onClick={() => {
+                    setShowFixed((v) => !v);
+                    setShowYearly(false);
+                  }}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-sm font-medium active:scale-95 ${showFixed ? "bg-amber-500/20 text-amber-400 border-l-2 border-l-amber-500 border border-amber-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                >
+                  <span className="text-base">🏷️</span>
+                  <span className="text-[12px] font-bold">
+                    One-Time / Fixed
+                  </span>
+                  {showFixed && (
+                    <span className="ml-auto text-[9px] font-bold bg-amber-500/30 text-amber-300 px-1.5 py-0.5 rounded-full">
+                      ON
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  data-ocid="pricing.yearly.toggle"
+                  onClick={() => {
+                    setShowYearly((v) => !v);
+                    setShowFixed(false);
+                  }}
+                  className={`flex items-center gap-3 w-full px-3 py-1.5 rounded-lg transition-all duration-150 text-sm font-medium active:scale-95 ${showYearly ? "bg-sky-500/20 text-sky-400 border-l-2 border-l-sky-500 border border-sky-500/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                >
+                  <span className="text-base">📅</span>
+                  <span className="text-[12px] font-bold">
+                    Yearly Memberships
+                  </span>
+                  {showYearly && (
+                    <span className="ml-auto text-[9px] font-bold bg-sky-500/30 text-sky-300 px-1.5 py-0.5 rounded-full">
+                      ON
+                    </span>
+                  )}
+                </button>
+              </div>
+
               <div className="p-3 space-y-1 mt-2 border-t border-zinc-800/50 pt-4">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
                     Pipeline Tiers
                   </div>
                   {mrrFilter !== "all" && (
@@ -3465,7 +4034,7 @@ export default function App() {
 
               <div className="p-3 space-y-1 border-t border-zinc-800/50 pt-4 mb-4">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
                     Ticket Size
                   </div>
                   {ticketFilter !== "All" && (
@@ -3579,7 +4148,7 @@ export default function App() {
 
               <div className="p-3 space-y-1 mt-2 border-t border-zinc-800/50 pt-4">
                 <div className="flex justify-between items-center px-3 pb-2">
-                  <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.12em]">
                     Region
                   </div>
                   {langFilter !== "All" && (
@@ -3784,8 +4353,15 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-[#0a0a0a] relative">
-            {filteredData.length === 0 ? (
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 lg:p-6 pb-4 md:pb-6 custom-scrollbar bg-[#0a0a0a] relative">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-64 gap-4">
+                <div className="w-8 h-8 border-2 border-zinc-700 border-t-violet-500 rounded-full animate-spin" />
+                <div className="text-zinc-500 text-sm font-medium">
+                  Loading dataset...
+                </div>
+              </div>
+            ) : filteredData.length === 0 ? (
               <EmptyState onReset={clearFilters} />
             ) : (
               <>
@@ -3830,7 +4406,7 @@ export default function App() {
                     <MinimalCardsView
                       data={filteredData}
                       currency={currency}
-                      format={formatCurrency}
+                      format={boundFormat}
                       isARR={isARR}
                       discoveryMap={
                         activeCategory === "top500" ? discoveryMap : undefined
@@ -3841,6 +4417,7 @@ export default function App() {
                       mrrDeltaFilter={
                         activeCategory === "top500" ? mrrDeltaFilter : "all"
                       }
+                      isMegaAll={activeCategory === "megaall"}
                     />
                   </>
                 )}
@@ -3848,7 +4425,7 @@ export default function App() {
                   <LedgerView
                     data={filteredData}
                     currency={currency}
-                    format={formatCurrency}
+                    format={boundFormat}
                     isARR={isARR}
                     discoveryMap={
                       activeCategory === "top500" ? discoveryMap : undefined
@@ -3860,7 +4437,7 @@ export default function App() {
                   <ObservatoryView
                     data={filteredData}
                     currency={currency}
-                    format={formatCurrency}
+                    format={boundFormat}
                     isARR={isARR}
                     totalRev={totalRev}
                   />
@@ -3872,7 +4449,7 @@ export default function App() {
 
         {!isZenMode && (
           <aside
-            className={`border-l border-zinc-800/80 bg-[#09090b] flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform transition-all duration-200 ${isRightOpen ? "w-64 opacity-100" : "w-0 opacity-0 border-none"}`}
+            className={`border-l border-zinc-800/80 bg-[#09090b] flex flex-col shrink-0 overflow-x-hidden overflow-y-auto custom-scrollbar transform-gpu motion-safe:transition-all duration-200 ${isRightOpen ? "w-64 opacity-100" : "w-0 opacity-0 border-none"}`}
           >
             <div className="w-64 flex flex-col min-h-full">
               <div className="p-4 border-b border-zinc-800/80">
@@ -3887,7 +4464,7 @@ export default function App() {
                       Total Pipeline
                     </div>
                     <div className="text-2xl font-black text-zinc-100 tracking-tighter">
-                      {formatCurrency(totalRev, currency)}
+                      {boundFormat(totalRev, currency)}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -3973,13 +4550,44 @@ export default function App() {
             <AICopilot
               data={filteredData}
               currency={currency}
-              format={formatCurrency}
+              format={boundFormat}
               isARR={isARR}
               onClose={() => setIsChatOpen(false)}
             />
           </div>
         )}
       </div>
+
+      {/* Mobile bottom nav bar - only shown on mobile, not in zen mode */}
+      {!isZenMode && (
+        <nav className="flex md:hidden shrink-0 items-center justify-around bg-[#09090b]/98 backdrop-blur-sm border-t border-zinc-800/60 px-2 py-1 pb-safe z-30">
+          {[
+            { id: "gallery", Icon: LayoutGrid, label: "Cards" },
+            { id: "table", Icon: Table2, label: "Ledger" },
+            { id: "analytics", Icon: BarChart3, label: "Charts" },
+          ].map(({ id, Icon, label }) => (
+            <button
+              key={id}
+              type="button"
+              data-ocid={`mobile.view.${id}.tab`}
+              onClick={() => setView(id)}
+              className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl min-w-[56px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 ${view === id ? "text-white bg-zinc-800" : "text-zinc-500 hover:text-zinc-300"}`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-semibold">{label}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            data-ocid="mobile.filter.open_modal_button"
+            onClick={() => setMobileFilterOpen(true)}
+            className="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl min-w-[56px] min-h-[44px] motion-safe:transition-all duration-150 active:scale-95 text-zinc-500 hover:text-zinc-300"
+          >
+            <Filter className="w-5 h-5" />
+            <span className="text-[10px] font-semibold">Filters</span>
+          </button>
+        </nav>
+      )}
 
       {isZenMode && (
         <button
@@ -4043,7 +4651,7 @@ function Top500ComparisonCard({
         boxShadow: glowStyle.boxShadow,
         borderColor: glowStyle.borderColor,
       }}
-      className={`group relative flex flex-col p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-200 rounded-xl w-full text-left animate-fadeInUp hover:-translate-y-0.5 ${community.url ? "cursor-pointer" : ""}`}
+      className={`group relative flex flex-col p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-150 rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${community.url ? "cursor-pointer" : ""}`}
     >
       {/* Header */}
       <div className="flex items-center gap-2 min-w-0 mb-3">
@@ -4149,6 +4757,26 @@ function Top500ComparisonCard({
   );
 }
 
+const CATEGORY_META: Record<
+  string,
+  {
+    label: string;
+    color: string;
+    Icon: React.ComponentType<{ className?: string }>;
+  }
+> = {
+  discovery: { label: "Discovery", color: "#8b5cf6", Icon: Telescope },
+  music: { label: "Music", color: "#ec4899", Icon: Music2 },
+  selfimprovement: { label: "Self Imp", color: "#06b6d4", Icon: Brain },
+  money: { label: "Money", color: "#10b981", Icon: Banknote },
+  spirituality: { label: "Spirit", color: "#f59e0b", Icon: Sun },
+  tech: { label: "Tech", color: "#3b82f6", Icon: Cpu },
+  health: { label: "Health", color: "#ef4444", Icon: Activity },
+  relationships: { label: "Relations", color: "#f43f5e", Icon: HeartHandshake },
+  sports: { label: "Sports", color: "#f97316", Icon: Dumbbell },
+  hobbies: { label: "Hobbies", color: "#a855f7", Icon: Wand2 },
+};
+
 const MinimalCardsView = memo(function MinimalCardsView({
   data,
   currency,
@@ -4157,6 +4785,7 @@ const MinimalCardsView = memo(function MinimalCardsView({
   discoveryMap,
   hideNoMatch,
   mrrDeltaFilter = "all",
+  isMegaAll = false,
 }: {
   data: EnrichedCommunity[];
   currency: string;
@@ -4168,6 +4797,7 @@ const MinimalCardsView = memo(function MinimalCardsView({
   };
   hideNoMatch?: boolean;
   mrrDeltaFilter?: "all" | "growth" | "declined";
+  isMegaAll?: boolean;
 }) {
   if (data.length === 0) return <EmptyState />;
 
@@ -4182,7 +4812,7 @@ const MinimalCardsView = memo(function MinimalCardsView({
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
       {data.map((community, index) => {
         if (discoveryMap) {
           const match = findMatch(community);
@@ -4217,7 +4847,7 @@ const MinimalCardsView = memo(function MinimalCardsView({
                 community.url && window.open(community.url, "_blank")
               }
               style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
-              className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-150 rounded-xl w-full text-left animate-fadeInUp hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 ${tier.border} ${tier.bg} min-h-[110px] ${
+              className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-150 rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${
                 community.url ? "cursor-pointer" : ""
               }`}
             >
@@ -4264,6 +4894,12 @@ const MinimalCardsView = memo(function MinimalCardsView({
 
         const tier = getTierInfo(community.activeRevenue);
         const ticketTier = getTicketTierInfo(community.ticketSize);
+        const catMeta =
+          isMegaAll && community.sourceCategory
+            ? CATEGORY_META[community.sourceCategory]
+            : null;
+        const isFixed = community.pricingType === "fixed";
+        const isYearly = community.pricingType === "yearly";
 
         return (
           <button
@@ -4273,10 +4909,24 @@ const MinimalCardsView = memo(function MinimalCardsView({
               community.url && window.open(community.url, "_blank")
             }
             style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
-            className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border transition-all duration-150 rounded-xl w-full text-left animate-fadeInUp hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 ${tier.border} ${tier.bg} min-h-[110px] ${
+            className={`group relative flex flex-col justify-between p-4 bg-[#0a0a0a] hover:bg-[#111] border motion-safe:transition-all duration-150 rounded-xl w-full text-left motion-safe:animate-fadeInUp motion-safe:hover:scale-[1.012] motion-safe:hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 will-change-transform [contain:layout_style_paint] ${tier.border} ${tier.bg} min-h-[110px] ${
               community.url ? "cursor-pointer" : ""
             }`}
           >
+            {/* Source category pill for Mega All */}
+            {catMeta && (
+              <div
+                className="absolute top-1.5 right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold z-10"
+                style={{
+                  backgroundColor: `${catMeta.color}22`,
+                  color: catMeta.color,
+                  border: `1px solid ${catMeta.color}40`,
+                }}
+              >
+                <catMeta.Icon className="w-2.5 h-2.5" />
+                <span>{catMeta.label}</span>
+              </div>
+            )}
             <div className="flex items-center gap-3 min-w-0 pr-2">
               <div
                 className={`w-8 h-8 shrink-0 rounded-md flex items-center justify-center ${ticketTier.bg} ${ticketTier.text} text-[10px] font-black shadow-sm`}
@@ -4289,6 +4939,16 @@ const MinimalCardsView = memo(function MinimalCardsView({
                   {community.name}
                 </h4>
               </div>
+              {isFixed && (
+                <span className="shrink-0 text-[8px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full">
+                  ONE-TIME
+                </span>
+              )}
+              {isYearly && (
+                <span className="shrink-0 text-[8px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded-full">
+                  YEARLY
+                </span>
+              )}
             </div>
 
             <div className="mt-4 flex items-end justify-between pt-1">
@@ -4298,18 +4958,61 @@ const MinimalCardsView = memo(function MinimalCardsView({
                   {compactNumber(community.members)}
                 </span>
                 <span className="text-zinc-600">•</span>
-                <span>
-                  ${compactNumber(community.ticketSize)}
-                  <span className="text-zinc-400 text-[10px]">
-                    /{isARR ? "y" : "m"}
+                {isFixed ? (
+                  <span className="text-amber-400">
+                    ${compactNumber(community.fixedPrice)}
+                    <span className="text-zinc-400 text-[10px]"> one-time</span>
                   </span>
-                </span>
+                ) : isYearly ? (
+                  <span className="flex flex-col items-start">
+                    <span className="text-sky-400">
+                      ${compactNumber(community.yearlyPrice)}/yr
+                    </span>
+                    <span className="text-zinc-500 text-[9px]">
+                      ~${compactNumber(community.ticketSize)}/mo
+                    </span>
+                  </span>
+                ) : (
+                  <span>
+                    ${compactNumber(community.ticketSize)}
+                    <span className="text-zinc-400 text-[10px]">
+                      /{isARR ? "y" : "m"}
+                    </span>
+                  </span>
+                )}
               </div>
-              <div
-                className={`text-[20px] font-black tracking-tighter leading-none ${tier.color} ${tier.glow}`}
-              >
-                {format(community.activeRevenue, currency)}
-              </div>
+              {isYearly ? (
+                <div className="flex flex-col items-end">
+                  <span
+                    className={`text-[20px] font-black tracking-tighter leading-none tabular-nums ${tier.color} ${tier.glow}`}
+                  >
+                    {isARR
+                      ? format(
+                          community.yearlyPrice * community.members,
+                          currency,
+                        )
+                      : format(
+                          Math.round(
+                            (community.yearlyPrice * community.members) / 12,
+                          ),
+                          currency,
+                        )}
+                  </span>
+                  <span className="text-[12px] font-semibold text-orange-100/65 mt-0.5 leading-none tabular-nums">
+                    {isARR
+                      ? `~${format(Math.round((community.yearlyPrice * community.members) / 12), currency)}/mo`
+                      : `${format(community.yearlyPrice * community.members, currency)}/yr`}
+                  </span>
+                </div>
+              ) : (
+                <div
+                  className={`text-[20px] font-black tracking-tighter leading-none tabular-nums ${isFixed ? "text-amber-500" : tier.color} ${tier.glow}`}
+                >
+                  {isFixed
+                    ? format(community.fixedPrice * community.members, currency)
+                    : format(community.activeRevenue, currency)}
+                </div>
+              )}
             </div>
           </button>
         );
@@ -4420,13 +5123,57 @@ const LedgerView = memo(function LedgerView({
                   <td className="p-3 text-zinc-400 text-right font-mono">
                     {compactNumber(community.members)}
                   </td>
-                  <td className="p-3 text-zinc-400 text-right font-mono">
-                    ${compactNumber(community.ticketSize)}
+                  <td className="p-3 text-right font-mono">
+                    {community.pricingType === "fixed" ? (
+                      <span className="text-amber-400 text-[12px] font-bold">
+                        ${compactNumber(community.fixedPrice)}
+                        <span className="text-[9px] text-amber-600 ml-0.5">
+                          1x
+                        </span>
+                      </span>
+                    ) : community.pricingType === "yearly" ? (
+                      <span className="text-sky-400 text-[12px] font-bold flex flex-col items-end">
+                        <span>${compactNumber(community.yearlyPrice)}/yr</span>
+                        <span className="text-[9px] text-zinc-500">
+                          ~${compactNumber(community.ticketSize)}/mo
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400">
+                        ${compactNumber(community.ticketSize)}
+                      </span>
+                    )}
                   </td>
                   <td
-                    className={`p-3 pr-4 font-black text-right tracking-tight font-mono ${tier.color} ${tier.glow}`}
+                    className={`p-3 pr-4 font-black text-right tracking-tight font-mono tabular-nums ${community.pricingType === "fixed" ? "text-amber-500" : community.pricingType === "yearly" ? "text-sky-400" : tier.color} ${tier.glow}`}
                   >
-                    {format(community.activeRevenue, currency)}
+                    {community.pricingType === "fixed" ? (
+                      format(community.fixedPrice * community.members, currency)
+                    ) : community.pricingType === "yearly" ? (
+                      <div className="flex flex-col items-end">
+                        <span>
+                          {isARR
+                            ? format(
+                                community.yearlyPrice * community.members,
+                                currency,
+                              )
+                            : format(
+                                Math.round(
+                                  (community.yearlyPrice * community.members) /
+                                    12,
+                                ),
+                                currency,
+                              )}
+                        </span>
+                        <span className="text-[12px] font-semibold text-orange-100/65 leading-none tabular-nums mt-0.5">
+                          {isARR
+                            ? `~${format(Math.round((community.yearlyPrice * community.members) / 12), currency)}/mo`
+                            : `${format(community.yearlyPrice * community.members, currency)}/yr`}
+                        </span>
+                      </div>
+                    ) : (
+                      format(community.activeRevenue, currency)
+                    )}
                   </td>
                   {isTop500 &&
                     discoveryMap &&
