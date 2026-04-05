@@ -190,7 +190,10 @@ export default function App() {
 
     let enriched: EnrichedCommunity[] = result.map((c) => ({
       ...c,
-      activeRevenue: c.mrr * (isARR ? 12 : 1),
+      activeRevenue:
+        c.pricingType === "fixed"
+          ? c.fixedPrice * c.members
+          : c.mrr * (isARR ? 12 : 1),
       activeTicket: c.ticketSize * (isARR ? 12 : 1),
     }));
 
@@ -202,7 +205,30 @@ export default function App() {
 
     enriched = enriched.filter((c) => {
       const isFree = c.pricingType === "monthly" && c.ticketSize === 0;
-      if (showFixed || showYearly) return true;
+      if (showYearly) {
+        // Yearly: apply revenue and ticket filters
+        if (mrrFilter !== "all") {
+          const revTier = getTierInfo(c.activeRevenue);
+          if (revTier.id !== mrrFilter) return false;
+        }
+        if (ticketFilter !== "All") {
+          const tTier = getTicketTierInfo(c.ticketSize);
+          if (tTier.id !== ticketFilter) return false;
+        }
+        return true;
+      }
+      if (showFixed) {
+        // Fixed: apply revenue tier (using fixedPrice * members) and member count filter
+        if (mrrFilter !== "all") {
+          const revTier = getTierInfo(c.activeRevenue);
+          if (revTier.id !== mrrFilter) return false;
+        }
+        if (ticketFilter !== "All") {
+          const tTier = getTicketTierInfo(c.fixedPrice);
+          if (tTier.id !== ticketFilter) return false;
+        }
+        return true;
+      }
 
       if (freeTierFilter !== "none") {
         if (!isFree) return false;
